@@ -33,7 +33,7 @@ async def create_skill(
     current_user: User = Depends(get_current_user)
 ):
     # Vérifier si l'utilisateur a les droits
-    if current_user.role != "admin":
+    if current_user.role != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent créer des compétences"
@@ -92,7 +92,7 @@ async def update_skill(
     current_user: User = Depends(get_current_user)
 ):
     # Vérifier si l'utilisateur a les droits
-    if current_user.role != "admin":
+    if current_user.role != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent modifier les compétences"
@@ -130,7 +130,7 @@ async def delete_skill(
     current_user: User = Depends(get_current_user)
 ):
     # Vérifier si l'utilisateur a les droits
-    if current_user.role != "admin":
+    if current_user.role != "ADMIN":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Seuls les administrateurs peuvent supprimer des compétences"

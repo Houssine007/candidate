@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Text
 from sqlalchemy.orm import relationship
 from ..core.database import Base
 
+
+
 class Skill(Base):
     __tablename__ = "skills"
 
@@ -17,3 +19,7 @@ class Skill(Base):
     # Relations
     candidates = relationship("CandidateSkill", back_populates="skill")
     job_requirements = relationship("JobRequirement", back_populates="skill") 
+
+
+
+

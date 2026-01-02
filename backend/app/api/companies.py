@@ -40,10 +40,12 @@ class CompanyResponse(CompanyBase):
 
 @router.post("/", response_model=CompanyResponse)
 async def create_company(company: CompanyCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    if current_user.role != "ADMIN":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul un admin peut créer une entreprise")
 
-    db_company = Company(**company.model_dump())
+    # Utiliser mode='json' pour sérialiser HttpUrl en string
+    company_data = company.model_dump(mode='json')
+    db_company = Company(**company_data)
     db.add(db_company)
     db.commit()
     db.refresh(db_company)
@@ -77,7 +79,7 @@ async def update_company(company_id: int, company_data: CompanyUpdate, db: Sessi
 
 @router.delete("/{company_id}")
 async def delete_company(company_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    if current_user.role != "ADMIN":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul un admin peut supprimer une entreprise")
 
     company = db.query(Company).filter(Company.id == company_id).first()

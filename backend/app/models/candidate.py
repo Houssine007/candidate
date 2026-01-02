@@ -15,11 +15,13 @@ class Candidate(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user_id = Column(Integer, ForeignKey("users.id"))
+    years_of_experience = Column(Float, nullable=True)
+    education_level = Column(Integer, nullable=True)
     
     # Relations
     #user = relationship("User", back_populates="candidate")
-    skills = relationship("CandidateSkill", back_populates="candidate")
-    applications = relationship("Application", back_populates="candidate")
+    skills = relationship("CandidateSkill", back_populates="candidate", cascade="all, delete-orphan")
+    applications = relationship("Application", back_populates="candidate",  cascade="all, delete-orphan")
         
 
 class CandidateSkill(Base):
@@ -36,4 +38,4 @@ class CandidateSkill(Base):
 
     
 
-    
+    # Puis dans CandidateBase/CandidateCreate : skills: List[SkillLevel] = []

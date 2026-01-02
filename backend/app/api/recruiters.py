@@ -36,7 +36,7 @@ class RecruiterResponse(RecruiterBase):
 
 @router.post("/", response_model=RecruiterResponse)
 async def create_recruiter(recruiter: RecruiterCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    if current_user.role != "ADMIN":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul un admin peut créer un recruteur")
 
     db_recruiter = Recruiter(**recruiter.model_dump())
@@ -68,7 +68,7 @@ async def update_recruiter(recruiter_id: int, recruiter_data: RecruiterUpdate, d
 
 @router.delete("/{recruiter_id}")
 async def delete_recruiter(recruiter_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    if current_user.role != "admin":
+    if current_user.role != "ADMIN":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Seul un admin peut supprimer un recruteur")
 
     recruiter = db.query(Recruiter).filter(Recruiter.id == recruiter_id).first()
