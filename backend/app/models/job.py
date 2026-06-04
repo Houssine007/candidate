@@ -10,17 +10,23 @@ class Job(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     recruiter_id = Column(Integer, ForeignKey("recruiters.id"))
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True) # Ajout pour isolation directe
     title = Column(String, index=True)
     description = Column(Text)
-    company = Column(String, index=True)
+    company = Column(String, index=True) # Nom de l'entreprise (redondant mais utile pour le job board public)
     location = Column(String)
     salary_min = Column(Float)
     salary_max = Column(Float)
+    min_years_experience = Column(Float, default=0.0)
+    min_education_level = Column(Integer, default=0) # 0-8 (Bac+?)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relations
     recruiter = relationship("Recruiter", back_populates="jobs")
+    company_related = relationship("Company") # Relation technique
+    org_unit_id = Column(Integer, ForeignKey("org_units.id"), nullable=True)
+    org_unit = relationship("OrgUnit", back_populates="jobs")
     requirements = relationship("JobRequirement", back_populates="job")
     applications = relationship("Application", back_populates="job")
 

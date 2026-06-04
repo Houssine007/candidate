@@ -20,3 +20,4 @@ class Company(Base):
 
     # Relations
     recruiters = relationship("Recruiter", back_populates="company", cascade="all, delete-orphan")
+    employees = relationship("Employee", back_populates="company", cascade="all, delete-orphan")

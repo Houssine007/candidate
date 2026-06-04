@@ -1,14 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel
 
 from ..core.database import get_db
 from ..models.job import Job, JobRequirement
+from ..models.application import Application
 from ..models.user import User
 from ..models.recruiter import Recruiter
 from ..models.skill import Skill
-from .auth import get_current_user
+from ..models.candidate import Candidate
+from ..services.matching import find_matching_candidates
+from .auth import get_current_user, get_current_user_optional
+from ..core.permissions import has_permission
 
 
 router = APIRouter()
@@ -26,6 +30,8 @@ class JobBase(BaseModel):
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
     company: str
+    min_years_experience: Optional[float] = 0.0
+    min_education_level: Optional[int] = 0
 
 class JobCreate(JobBase):
     requirements: List[SkillRequirement] = []
@@ -37,6 +43,8 @@ class JobUpdate(BaseModel):
     salary_min: Optional[float] = None
     salary_max: Optional[float] = None
     company: Optional[str] = None
+    min_years_experience: Optional[float] = None
+    min_education_level: Optional[int] = None
     requirements: Optional[List[SkillRequirement]] = None
 
 class SkillRequirementResponse(BaseModel):
@@ -50,21 +58,23 @@ class SkillRequirementResponse(BaseModel):
 
 class JobResponse(JobBase):
     id: int
-    recruiter_id: int
+    recruiter_id: Optional[int] = None
     requirements: List[SkillRequirementResponse] = []
 
     class Config:
         from_attributes = True
 
 class JobWithMatches(JobResponse):
-    matching_candidates: List[dict] = []
+    matching_candidates: List[dict] = []  # Sera enrichi avec score et gaps
+
 
 # Endpoints
 @router.post("/", response_model=JobResponse, status_code=status.HTTP_201_CREATED)
 async def create_job(
     job: JobCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(get_current_user),
+    _permission: bool = Depends(has_permission("jobs:create"))
 ):
     """
     Créer une nouvelle offre d'emploi.
@@ -85,12 +95,13 @@ async def create_job(
             detail="Vous devez avoir un profil recruteur pour créer une offre"
         )
     
-    # Si admin sans profil recruteur, créer un job sans recruiter_id (ou gérer autrement)
+    # Si recruteur, on récupère son company_id pour l'isolation
+    company_id = recruiter.company_id if recruiter else None
     recruiter_id = recruiter.id if recruiter else None
     
     # Créer la nouvelle offre
     job_data = job.model_dump(exclude={"requirements"})
-    db_job = Job(**job_data, recruiter_id=recruiter_id)
+    db_job = Job(**job_data, recruiter_id=recruiter_id, company_id=company_id)
     db.add(db_job)
     db.flush()  # Pour obtenir l'ID du job
     
@@ -131,13 +142,21 @@ async def get_jobs(
     location: Optional[str] = None,
     company: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Récupérer la liste des offres d'emploi avec filtres optionnels.
     """
-    # Construire la requête
-    query = db.query(Job)
+    # Construire la requête avec chargement immédiat des relations
+    query = db.query(Job).options(
+        joinedload(Job.requirements).joinedload(JobRequirement.skill)
+    )
+    
+    # Isolation Multi-tenant : si c'est un recruteur, il ne voit que ses jobs
+    if current_user and current_user.role == "RECRUITER":
+        recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
+        if recruiter:
+            query = query.filter(Job.company_id == recruiter.company_id)
     
     # Appliquer les filtres
     if location:
@@ -163,7 +182,7 @@ async def get_jobs(
 async def get_job(
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Optional[User] = Depends(get_current_user_optional)
 ):
     """
     Récupérer les détails d'une offre d'emploi spécifique.
@@ -292,7 +311,7 @@ async def delete_job(
 @router.get("/{job_id}/matches")
 async def get_job_matches(
     job_id: int,
-    min_score: float = 60.0,
+    min_score: float = 40.0,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -307,27 +326,51 @@ async def get_job_matches(
             detail="Vous n'avez pas les droits pour voir les correspondances"
         )
     
-    # Récupérer l'offre
-    job = db.query(Job).filter(Job.id == job_id).first()
+    # Récupérer l'offre avec ses exigences et les noms des compétences associés
+    job = db.query(Job).options(
+        joinedload(Job.requirements).joinedload(JobRequirement.skill)
+    ).filter(Job.id == job_id).first()
+    
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Offre d'emploi non trouvée"
         )
+        
+    # Isolation Multi-tenant : un recruteur ne peut voir que les matches de ses propres offres
+    if current_user.role == "RECRUITER":
+        recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
+        if not recruiter or job.company_id != recruiter.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Vous ne pouvez voir les matches que pour les offres de votre entreprise"
+            )
     
-    # TODO: Implémenter l'algorithme de matching
-    # Pour l'instant, retourner une structure vide
-    from ..models.candidate import Candidate
-    candidates = db.query(Candidate).all()
+    # Injecter skill_name pour les détails du matching
+    for req in job.requirements:
+        req.skill_name = req.skill.name if req.skill else f"Skill #{req.skill_id}"
     
-    # Enrichir la réponse
+    # Implémentation de l'algorithme de matching
+    candidates = db.query(Candidate).options(
+        joinedload(Candidate.skills)
+    ).all()
+    
+    matches = find_matching_candidates(job, candidates, min_score)
+    
+    # Enrichir avec le statut "a postulé"
+    applied_candidate_ids = [
+        app.candidate_id 
+        for app in db.query(Application.candidate_id).filter(Application.job_id == job_id).all()
+    ]
+    
+    for match in matches:
+        match["has_applied"] = match["candidate_id"] in applied_candidate_ids
+
+    # Enrichir la réponse Pydantic pour le frontend
     job_response = JobResponse.model_validate(job)
-    for req in job_response.requirements:
-        skill = db.query(Skill).filter(Skill.id == req.skill_id).first()
-        if skill:
-            req.skill_name = skill.name
     
+    # Fusionner les matches dans l'objet réponse
     response_dict = job_response.model_dump()
-    response_dict["matching_candidates"] = []  # TODO: Implémenter le matching
+    response_dict["matching_candidates"] = matches
     
     return response_dict

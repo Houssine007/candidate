@@ -1,6 +1,53 @@
-from .user import User
-from .candidate import Candidate
-from sqlalchemy.orm import relationship
+from .user import User, UserRole
+from .candidate import Candidate, CandidateSkill
+from .recruiter import Recruiter
+from .company import Company
+from .job import Job, JobRequirement
+from .skill import Skill
+from .application import Application, ApplicationStatus
+from .employee import Employee
+from .internal_hr import (
+    InternalPosition, 
+    InternalPositionRequirement, 
+    InternalApplication,
+    Training,
+    TrainingSkill,
+    TrainingEnrollment,
+    Evaluation
+)
+from .organization import OrgUnit
+from .job_standard import JobStandard, JobStandardRequirement
+from .permissions import Permission, InternalRole, role_permissions
 
-User.candidate = relationship(Candidate, uselist=False, back_populates="user")
-Candidate.user = relationship(User, uselist=False, back_populates="candidate")
+
+
+# Liste pour export
+__all__ = [
+    "User", 
+    "UserRole",
+    "Candidate", 
+    "CandidateSkill",
+    "Recruiter", 
+    "Company", 
+    "Job", 
+    "JobRequirement", 
+    "Skill", 
+    "Application",
+    "ApplicationStatus",
+    "Employee",
+    "InternalPosition",
+    "InternalPositionRequirement",
+    "InternalApplication",
+    "Training",
+    "TrainingSkill",
+    "TrainingEnrollment",
+    "Evaluation",
+    "OrgUnit",
+    "JobStandard",
+    "JobStandardRequirement",
+    "Permission",
+    "InternalRole",
+    "role_permissions"
+]
+
+

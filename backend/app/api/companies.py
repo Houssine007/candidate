@@ -4,6 +4,7 @@ from ..core.database import get_db
 from ..models.company import Company
 from ..models.user import User
 from .auth import get_current_user
+from ..services.permissions import init_company_roles
 
 router = APIRouter(prefix="/companies", tags=["Companies"])
 
@@ -49,6 +50,10 @@ async def create_company(company: CompanyCreate, db: Session = Depends(get_db), 
     db.add(db_company)
     db.commit()
     db.refresh(db_company)
+    
+    # Initialiser les rôles par défaut pour cette entreprise
+    init_company_roles(db, db_company.id)
+    
     return db_company
 
 @router.get("/", response_model=list[CompanyResponse])
@@ -69,7 +74,7 @@ async def update_company(company_id: int, company_data: CompanyUpdate, db: Sessi
     if not company:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entreprise non trouvée")
 
-    update_data = company_data.model_dump(exclude_unset=True)
+    update_data = company_data.model_dump(exclude_unset=True, mode='json')
     for key, value in update_data.items():
         setattr(company, key, value)
 

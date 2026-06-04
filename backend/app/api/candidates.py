@@ -1,7 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, File, UploadFile
 from sqlalchemy.orm import Session, joinedload, selectinload
-from typing import List, Optional
+from typing import List, Optional, Any
 from pydantic import BaseModel, EmailStr
+import shutil
+import os
 
 from ..core.database import get_db
 from ..models.candidate import Candidate
@@ -11,6 +13,25 @@ from ..models.candidate import CandidateSkill
 from ..models.skill import Skill
 from pydantic import field_validator, model_validator
 from app.models.application import Application
+from ..models.job import Job, JobRequirement
+from ..services.matching import discover_top_talents, calculate_match_score
+from ..services.cv_service import extract_text_from_pdf, parse_cv_with_ai
+
+class SkillRequirement(BaseModel):
+    skill_id: int
+    required_level: int
+    is_mandatory: bool = True
+
+class DiscoveryRequest(BaseModel):
+    requirements: List[SkillRequirement]
+    limit: Optional[int] = 10
+
+class DiscoveryMatch(BaseModel):
+    candidate_id: int
+    full_name: str
+    score: float
+    gaps: List[dict]
+
 
 
 
@@ -49,21 +70,30 @@ class SkillLevel(BaseModel):
 class CandidateBase(BaseModel):
     first_name: str
     last_name: str
-    email: EmailStr
-    phone: str
+    phone: Optional[str] = None
     years_of_experience: float
     education_level: int
+    bio: Optional[str] = None
+    cv_text: Optional[str] = None
+    formations: Optional[str] = None
+    certifications: Optional[str] = None
+    experience_detail: Optional[str] = None
+    is_active: bool = True
+    is_visible: bool = True
     skills: List[SkillLevel] = []
 
 class CandidateCreate(CandidateBase):
     years_of_experience: Optional[float] = None
     education_level: Optional[int] = None
+    onboarding_step: Optional[int] = None
     skills: List[SkillLevel] = []
 
 class CandidateUpdate(CandidateBase):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     email: Optional[EmailStr] = None
+    is_active: Optional[bool] = None
+    is_visible: Optional[bool] = None
     phone: Optional[str] = None
     skills: List[SkillLevel] = []
     years_of_experience: Optional[float] = None
@@ -77,10 +107,25 @@ class CandidateResponse(BaseModel):
     first_name: str
     last_name: str
     email: EmailStr
-    phone: str
+    phone: Optional[str]
     years_of_experience: Optional[float]
     education_level: Optional[int]
+    bio: Optional[str]
+    cv_text: Optional[str]
+    formations: Optional[str] = None
+    certifications: Optional[str] = None
+    experience_detail: Optional[str] = None
+    cv_url: Optional[str] = None
+    onboarding_step: int = 1
+    is_active: bool = True
+    is_visible: bool = True
     skills: List[dict]  # Custom dict pour inclure name
+    
+    # Matching specific
+    match_score: Optional[float] = None
+    match_details: Optional[Any] = None
+    current_status: Optional[str] = None
+    application_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -105,12 +150,172 @@ class CandidateResponse(BaseModel):
             phone=obj.phone,
             years_of_experience=obj.years_of_experience,
             education_level=obj.education_level,
+            bio=obj.bio,
+            cv_text=obj.cv_text,
+            cv_url=obj.cv_url,
+            onboarding_step=obj.onboarding_step,
+            formations=obj.formations,
+            certifications=obj.certifications,
+            experience_detail=obj.experience_detail,
+            is_active=obj.is_active if obj.is_active is not None else True,
+            is_visible=obj.is_visible if obj.is_visible is not None else True,
             skills=skills
         )
 
 
 
 # Endpoints
+@router.get("/me/", response_model=CandidateResponse)
+async def get_my_candidate_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Récupère le profil du candidat actuellement connecté.
+    """
+    candidate = (
+        db.query(Candidate)
+        .options(joinedload(Candidate.skills).joinedload(CandidateSkill.skill))
+        .filter(Candidate.user_id == current_user.id)
+        .first()
+    )
+
+    if not candidate:
+        # Création paresseuse : on crée le profil s'il n'existe pas pour éviter les 404 console
+        candidate = Candidate(
+            user_id=current_user.id, 
+            email=current_user.email,
+            first_name=current_user.full_name.split()[0] if current_user.full_name else "Candidat",
+            last_name=current_user.full_name.split()[1] if (current_user.full_name and len(current_user.full_name.split()) > 1) else "Profil",
+            onboarding_step=1
+        )
+        db.add(candidate)
+        db.commit()
+        db.refresh(candidate)
+
+    return CandidateResponse.from_orm(candidate)
+
+@router.put("/me/", response_model=CandidateResponse)
+async def update_my_candidate_profile(
+    candidate_in: CandidateUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Met à jour ou crée le profil du candidat actuellement connecté.
+    """
+    db_candidate = (
+        db.query(Candidate)
+        .options(joinedload(Candidate.skills).joinedload(CandidateSkill.skill))
+        .filter(Candidate.user_id == current_user.id)
+        .first()
+    )
+
+    if not db_candidate:
+        # Créer le profil s'il n'existe pas (Onboarding)
+        db_candidate = Candidate(
+            user_id=current_user.id,
+            email=current_user.email,
+            first_name=current_user.full_name.split()[0] if current_user.full_name else "Candidate",
+            last_name=" ".join(current_user.full_name.split()[1:]) if current_user.full_name and len(current_user.full_name.split()) > 1 else ""
+        )
+        db.add(db_candidate)
+        db.flush()
+
+    update_data = candidate_in.model_dump(exclude_unset=True)
+    
+    # On interdit au candidat de changer son email ou son statut actif/visible via cet endpoint 
+    # pour garder le contrôle (ou on laisse s'il veut être invisible)
+    # Pour l'instant on laisse is_visible car c'est utile.
+    
+    simple_fields = {k: v for k, v in update_data.items() if k != "skills"}
+    for key, value in simple_fields.items():
+        setattr(db_candidate, key, value)
+
+    if "skills" in update_data:
+        # Supprimer les anciennes relations
+        db.query(CandidateSkill).filter(
+            CandidateSkill.candidate_id == db_candidate.id
+        ).delete()
+        db.flush()
+
+        skill_inputs = update_data["skills"]
+        for s in skill_inputs:
+            skill_id = s.get("skill_id")
+            name = s.get("name")
+            
+            if skill_id:
+                db_skill = db.query(Skill).filter(Skill.id == skill_id).first()
+            elif name:
+                db_skill = db.query(Skill).filter(Skill.name == name).first()
+                if not db_skill:
+                    db_skill = Skill(name=name, category="default")
+                    db.add(db_skill)
+                    db.flush()
+            else: continue
+
+            if db_skill:
+                db_skill_link = CandidateSkill(
+                    candidate_id=db_candidate.id,
+                    skill_id=db_skill.id,
+                    level=s.get("level"),
+                    years_experience=s.get("years_experience")
+                )
+                db.add(db_skill_link)
+
+    db.commit()
+    db.refresh(db_candidate)
+    return CandidateResponse.from_orm(db_candidate)
+
+@router.patch("/me/onboarding/", response_model=CandidateResponse)
+async def update_onboarding_progress(
+    candidate_in: CandidateUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Sauvegarde progressive du profil pendant l'onboarding.
+    """
+    db_candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+    if not db_candidate:
+        db_candidate = Candidate(user_id=current_user.id, email=current_user.email,
+                                 first_name=current_user.full_name.split()[0] if current_user.full_name else "Candidate")
+        db.add(db_candidate)
+        db.flush()
+
+    update_data = candidate_in.model_dump(exclude_unset=True)
+    
+    # Mise à jour des champs simples (y compris onboarding_step)
+    for key, value in update_data.items():
+        if key != "skills":
+            setattr(db_candidate, key, value)
+
+    # Mise à jour des skills si présentes
+    if "skills" in update_data:
+        # On ajoute les skills sans forcément supprimer les anciennes pour l'onboarding 
+        # (Ou on remplace, selon la logique désirée. Ici on remplace pour éviter les doublons).
+        db.query(CandidateSkill).filter(CandidateSkill.candidate_id == db_candidate.id).delete()
+        for s in update_data["skills"]:
+            db_skill = db.query(Skill).filter(
+                (Skill.id == s.get("skill_id")) | (Skill.name == s.get("name"))
+            ).first()
+            if not db_skill and s.get("name"):
+                db_skill = Skill(name=s.get("name"), category="default")
+                db.add(db_skill)
+                db.flush()
+            
+            if db_skill:
+                db.add(CandidateSkill(
+                    candidate_id=db_candidate.id,
+                    skill_id=db_skill.id,
+                    level=s.get("level"),
+                    years_experience=s.get("years_experience")
+                ))
+
+    db.commit()
+    db.refresh(db_candidate)
+    return CandidateResponse.from_orm(db_candidate)
+
 @router.post("/", response_model=CandidateResponse)
 async def create_candidate(
     candidate: CandidateCreate,
@@ -131,7 +336,14 @@ async def create_candidate(
         phone=candidate.phone,
         user_id=current_user.id,
         years_of_experience=candidate.years_of_experience,
-        education_level=candidate.education_level
+        education_level=candidate.education_level,
+        bio=candidate.bio,
+        cv_text=candidate.cv_text,
+        formations=candidate.formations,
+        certifications=candidate.certifications,
+        experience_detail=candidate.experience_detail,
+        is_active=candidate.is_active,
+        is_visible=candidate.is_visible
     )
     db.add(db_candidate)
     db.flush()  # Flush pour get id sans commit yet
@@ -200,12 +412,75 @@ async def get_candidates(
     return [CandidateResponse.from_orm(c) for c in candidates]
 
     
-@router.get("/{candidate_id}", response_model=CandidateResponse)
-async def get_candidate(
-    candidate_id: int,
+@router.post("/me/cv/", response_model=CandidateResponse)
+async def upload_cv(
+    file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    """
+    Uploader un CV PDF, extraire son texte et l'analyser avec l'IA.
+    """
+    if current_user.role != "CANDIDATE":
+        raise HTTPException(status_code=403, detail="Seuls les candidats peuvent uploader un CV")
+
+    candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Profil candidat non trouvé")
+
+    # Créer le répertoire si nécessaire
+    upload_dir = "uploads/cvs"
+    os.makedirs(upload_dir, exist_ok=True)
+
+    # Sauvegarder le fichier
+    file_ext = os.path.splitext(file.filename)[1]
+    if file_ext.lower() != ".pdf":
+        raise HTTPException(status_code=400, detail="Seuls les fichiers PDF sont acceptés")
+
+    file_path = os.path.join(upload_dir, f"cv_{candidate.id}{file_ext}")
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    # Mettre à jour l'URL du CV
+    candidate.cv_url = file_path
+
+    # Extraction et Analyse
+    raw_text = extract_text_from_pdf(file_path)
+    if raw_text:
+        candidate.cv_text = raw_text
+        # Analyse IA (en asynchrone idéalement, mais ici on attend pour l'exemple)
+        ai_data = await parse_cv_with_ai(raw_text)
+        
+        if ai_data:
+            # Injecter les données extraites (écrasement intelligent ou partiel)
+            if ai_data.get("bio_summary"):
+                candidate.bio = ai_data.get("bio_summary")
+            if ai_data.get("experience_detail"):
+                candidate.experience_detail = ai_data.get("experience_detail")
+            if ai_data.get("years_of_experience"):
+                candidate.years_of_experience = float(ai_data.get("years_of_experience"))
+            if ai_data.get("education_level"):
+                candidate.education_level = int(ai_data.get("education_level"))
+            
+            # TODO: Mapper les skills extraits vers CandidateSkill
+            # Pour l'instant on se concentre sur les métadonnées principales
+
+    db.commit()
+    db.refresh(candidate)
+    
+    return CandidateResponse.from_orm(candidate)
+
+@router.get("/{candidate_id}/", response_model=CandidateResponse)
+async def get_candidate(
+    candidate_id: int,
+    job_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Récupère un candidat par son ID.
+    Si job_id est fourni, calcule le score de matching et récupère le statut de la candidature.
+    """
     # Vérification des permissions
     if current_user.role not in ["ADMIN", "RECRUITER"]:
         raise HTTPException(
@@ -213,25 +488,60 @@ async def get_candidate(
             detail="Vous n'avez pas les droits pour voir ce candidat"
         )
 
-    # Eager loading : Candidate → CandidateSkill → Skill
-    candidate = (
-        db.query(Candidate)
-        .options(
-            joinedload(Candidate.skills).joinedload(CandidateSkill.skill)
-        )
-        .filter(Candidate.id == candidate_id)
-        .first()
-    )
-
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Candidat non trouvé"
+    try:
+        # Eager loading : Candidate → CandidateSkill → Skill
+        candidate = (
+            db.query(Candidate)
+            .options(
+                joinedload(Candidate.skills).joinedload(CandidateSkill.skill)
+            )
+            .filter(Candidate.id == candidate_id)
+            .first()
         )
 
-    return CandidateResponse.from_orm(candidate)
+        if not candidate:
+            print(f"❌ Candidat {candidate_id} non trouvé")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Candidat non trouvé"
+            )
 
-@router.put("/{candidate_id}", response_model=CandidateResponse)
+        print(f"✅ Candidat {candidate_id} récupéré: {candidate.first_name} {candidate.last_name}")
+        
+        response = CandidateResponse.from_orm(candidate)
+        
+        if job_id:
+            # 1. Calcul du Matching Score
+            job = db.query(Job).options(
+                joinedload(Job.requirements).joinedload(JobRequirement.skill)
+            ).filter(Job.id == job_id).first()
+            
+            if job:
+                # Injecter skill_name pour le matcher
+                for req in job.requirements:
+                    req.skill_name = req.skill.name if req.skill else f"Skill #{req.skill_id}"
+                
+                match_data = calculate_match_score(candidate, job)
+                response.match_score = match_data["total_score"]
+                response.match_details = match_data
+
+            # 2. Récupération du Statut actuel
+            app = db.query(Application).filter(
+                Application.candidate_id == candidate_id,
+                Application.job_id == job_id
+            ).first()
+            if app:
+                response.current_status = app.status
+                response.application_id = app.id
+
+        return response
+    except Exception as e:
+        print(f"🔥 Erreur fatale lors de la récupération du candidat {candidate_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.put("/{candidate_id}/", response_model=CandidateResponse)
 async def update_candidate(
     candidate_id: int,
     candidate: CandidateUpdate,
@@ -326,7 +636,7 @@ async def update_candidate(
 
 
 
-@router.delete("/{candidate_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{candidate_id}/", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_candidate(
     candidate_id: int,
     db: Session = Depends(get_db),
@@ -365,3 +675,32 @@ async def delete_candidate(
     db.commit()
 
     return None  # Pas de body pour 204HUB
+
+
+@router.post("/discover", response_model=List[DiscoveryMatch])
+async def discover_candidates(
+    request: DiscoveryRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Détecte les meilleurs talents pour un profil cible (referentielle), même sans offre.
+    Utile pour la "chasse de tête" proactive ou la planification de besoins futurs.
+    """
+    if current_user.role not in ["ADMIN", "RECRUITER"]:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    candidates = db.query(Candidate).filter(
+        Candidate.is_visible == True,
+        Candidate.is_active == True
+    ).options(
+        joinedload(Candidate.skills)
+    ).all()
+    
+    # Convertir les requirements Pydantic en dict pour le service
+    req_data = [req.model_dump() for req in request.requirements]
+    
+    matches = discover_top_talents(req_data, candidates, limit=request.limit)
+    
+    return matches
+

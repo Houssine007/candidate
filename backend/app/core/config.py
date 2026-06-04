@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 import secrets
 import json
 
@@ -17,12 +17,13 @@ class Settings(BaseSettings):
     """
     
     # Sécurité
-    SECRET_KEY: str = secrets.token_urlsafe(32)
+    SECRET_KEY: str = "dev_secret_key_fixed_for_stability_change_in_prod"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    GOOGLE_API_KEY: Optional[str] = None
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://192.168.56.1:3000"]
     
     
     # Base de données

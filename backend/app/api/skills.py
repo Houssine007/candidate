@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 from ..core.database import get_db
@@ -14,7 +14,7 @@ router = APIRouter()
 class SkillBase(BaseModel):
     name: str
     category: str
-    description: str
+    description: Optional[str] = None
 
 class SkillCreate(SkillBase):
     pass

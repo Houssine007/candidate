@@ -8,6 +8,7 @@ class UserRole(str, enum.Enum):
     CANDIDATE = "CANDIDATE"
     RECRUITER = "RECRUITER"
     ADMIN = "ADMIN"
+    EMPLOYEE = "EMPLOYEE"
 
 class User(Base):
     __tablename__ = "users"
@@ -23,4 +24,5 @@ class User(Base):
 
     # Relations
     recruiter = relationship("Recruiter", uselist=False, back_populates="user")
-    #candidate = relationship("Candidate", uselist=False, back_populates="user")
+    candidate = relationship("Candidate", uselist=False, back_populates="user")
+    employee = relationship("Employee", uselist=False, back_populates="user")

@@ -24,6 +24,9 @@ try:
     from app.models.job import Job  # noqa: F401
     from app.models.application import Application  # noqa: F401
     from app.models.skill import Skill  # noqa: F401
+    from app.models.employee import Employee  # noqa: F401
+    from app.models.organization import OrgUnit  # noqa: F401
+    from app.models.permissions import Permission, InternalRole  # noqa: F401
 except ImportError as e:
     print(f"Erreur d'import : {e}")
     raise

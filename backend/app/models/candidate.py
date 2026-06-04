@@ -1,8 +1,7 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
-from sqlalchemy import ForeignKey
 
 class Candidate(Base):
     __tablename__ = "candidates"
@@ -16,10 +15,19 @@ class Candidate(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     user_id = Column(Integer, ForeignKey("users.id"))
     years_of_experience = Column(Float, nullable=True)
-    education_level = Column(Integer, nullable=True)
+    education_level = Column(Integer, nullable=True) # Bac+X
+    bio = Column(Text, nullable=True)
+    cv_text = Column(Text, nullable=True)
+    cv_url = Column(String, nullable=True)
+    formations = Column(Text, nullable=True) # JSON or structured text
+    certifications = Column(Text, nullable=True)
+    experience_detail = Column(Text, nullable=True) # Détails libres
+    onboarding_step = Column(Integer, default=1) # 1: Identity, 2: Skills, 3: Exp, 4: Done
+    is_active = Column(Boolean, default=True)
+    is_visible = Column(Boolean, default=True) # Pour le matching public
     
     # Relations
-    #user = relationship("User", back_populates="candidate")
+    user = relationship("User", back_populates="candidate")
     skills = relationship("CandidateSkill", back_populates="candidate", cascade="all, delete-orphan")
     applications = relationship("Application", back_populates="candidate",  cascade="all, delete-orphan")
         
