@@ -25,7 +25,7 @@ export default function LoginPage() {
             if (user.role === "RECRUITER") {
                 router.push("/dashboard/recruiter")
             } else {
-                router.push("/")
+                router.push("/dashboard/candidate")
             }
         } catch (err) {
             setError("Email ou mot de passe incorrect")

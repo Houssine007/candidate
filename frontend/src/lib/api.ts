@@ -153,10 +153,15 @@ async function apiFetch<T>(
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
   }
+  
   if (token) headers["Authorization"] = `Bearer ${token}`
-  if (!(options.body instanceof FormData)) {
+  
+  // N'ajouter Content-Type: application/json que si non spécifié 
+  // et si le corps n'est pas FormData ou URLSearchParams
+  if (!headers["Content-Type"] && options.body && !(options.body instanceof FormData) && !(options.body instanceof URLSearchParams)) {
     headers["Content-Type"] = "application/json"
   }
+  
   const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
@@ -167,12 +172,17 @@ async function apiFetch<T>(
 }
 
 export async function login(email: string, password: string): Promise<{ user: AuthUser; token: string }> {
-  const form = new URLSearchParams()
-  form.append("username", email)
-  form.append("password", password)
+  const params = new URLSearchParams()
+  params.append("username", email)
+  params.append("password", password)
+  
   const data = await apiFetch<{ access_token: string; token_type: string }>(
     "/api/auth/token",
-    { method: "POST", body: form.toString(), headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    { 
+      method: "POST", 
+      body: params,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" } 
+    }
   )
   const user = await apiFetch<AuthUser>("/api/auth/me", {}, data.access_token)
   return { user, token: data.access_token }
@@ -214,6 +224,10 @@ export async function getRecruiterJobsWithMatches(token: string): Promise<Job[]>
   return enriched
 }
 
+export async function createJob(job: Partial<Job>, token: string): Promise<Job> {
+  return apiFetch<Job>("/api/jobs/", { method: "POST", body: JSON.stringify(job) }, token)
+}
+
 export async function getJobApplications(jobId: number, token: string): Promise<Application[]> {
   return apiFetch<Application[]>(`/api/applications/job/${jobId}/`, {}, token)
 }
@@ -248,7 +262,7 @@ export async function updateCandidateOnboarding(data: Partial<CandidateProfile>,
 }
 
 export async function getCandidate(candidateId: number, token: string, jobId?: number): Promise<CandidateProfile> {
-  const candidate = await apiFetch<CandidateProfile>(`/api/candidates/${candidateId}`, {}, token)
+  const candidate = await apiFetch<CandidateProfile>(`/api/candidates/${candidateId}/`, {}, token)
   if (jobId) {
     try {
       const apps = await apiFetch<Application[]>(`/api/applications/job/${jobId}/`, {}, token)
@@ -267,16 +281,10 @@ export async function getCandidate(candidateId: number, token: string, jobId?: n
 export async function uploadCV(file: File, token: string): Promise<CandidateProfile> {
   const form = new FormData()
   form.append("file", file)
-  const res = await fetch(`${API_BASE}/api/candidates/upload-cv`, {
+  return apiFetch<CandidateProfile>("/api/candidates/me/cv/", {
     method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
     body: form,
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }))
-    throw new Error(err.detail || `HTTP ${res.status}`)
-  }
-  return res.json()
+  }, token)
 }
 
 export async function getSkills(token?: string): Promise<Skill[]> {

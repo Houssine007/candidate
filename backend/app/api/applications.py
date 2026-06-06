@@ -75,8 +75,15 @@ async def invite_candidate(
     ).first()
     
     if existing:
-        raise HTTPException(status_code=400, detail="Ce candidat a déjà postulé ou été invité")
-
+        if existing.status == ApplicationStatus.APPLIED:
+        # Le candidat avait postulé, on l'accepte dans le pipeline
+            existing.status = ApplicationStatus.PENDING
+            db.commit()
+            db.refresh(existing)
+            existing.job_title = job.title
+            existing.candidate_name = f"{candidate.first_name} {candidate.last_name}"
+        return existing
+    raise HTTPException(status_code=400, detail="Ce candidat est déjà dans le pipeline")
     # Créer l'application
     db_app = Application(
         job_id=invite.job_id,
@@ -137,7 +144,7 @@ async def create_application(
         candidate_id=candidate.id,
         job_id=app_in.job_id,
         cover_letter=app_in.cover_letter,
-        status=ApplicationStatus.PENDING
+        status=ApplicationStatus.APPLIED
     )
     
     db.add(db_app)
@@ -226,7 +233,8 @@ async def get_job_applications(
     apps = db.query(Application).options(
         joinedload(Application.candidate).joinedload(Candidate.skills).joinedload(CandidateSkill.skill)
     ).filter(
-        Application.job_id == job_id
+        Application.job_id == job_id,
+        Application.status != ApplicationStatus.APPLIED   # ← ajoute ça
     ).all()
     
     result = []

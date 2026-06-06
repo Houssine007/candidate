@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey, Text, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.core.database import Base
@@ -25,7 +25,15 @@ class Candidate(Base):
     onboarding_step = Column(Integer, default=1) # 1: Identity, 2: Skills, 3: Exp, 4: Done
     is_active = Column(Boolean, default=True)
     is_visible = Column(Boolean, default=True) # Pour le matching public
-    
+    job_title = Column(String, nullable=True)           # "Dev Full Stack 5 ans"
+    location = Column(String, nullable=True)            # "Paris, France"
+    remote_ok = Column(Boolean, default=False)
+    photo_url = Column(String, nullable=True)
+    links = Column(JSON, nullable=True)                 # {"github": "...", "portfolio": "...", "linkedin": "...", "other": []}
+    projects = Column(JSON, nullable=True)              # [{"title":"...", "description":"...", "url":"...", "skills":[]}]
+    profile_completeness_score = Column(Float, default=0.0)
+    onboarding_completed_at = Column(DateTime, nullable=True)
+
     # Relations
     user = relationship("User", back_populates="candidate")
     skills = relationship("CandidateSkill", back_populates="candidate", cascade="all, delete-orphan")

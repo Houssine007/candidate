@@ -40,3 +40,7 @@ mkdocs-material==9.4.14
 
 # Dépendances précompilées
 pydantic-core==2.10.1 
+
+
+openai>=1.0.0
+PyMuPDF>=1.23.0

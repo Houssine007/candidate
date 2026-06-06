@@ -36,9 +36,8 @@ export default function SignupPage() {
             // 3. Redirect
             if (user.role === "RECRUITER") {
                 router.push("/dashboard/recruiter")
-            } else {
                 // Pour les candidats, direction onboarding !
-                router.push("/onboarding/candidate")
+                router.push("/dashboard/candidate/onboarding")
             }
         } catch (err: any) {
             setError(err.message || "Une erreur est survenue lors de l'inscription")

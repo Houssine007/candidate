@@ -133,14 +133,19 @@ export default function RecruiterDashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
                     <StatsCard label="Postes Ouverts" value={totalPositions.toString()} icon={<Briefcase />} color="text-primary" />
                     <StatsCard label="Candidats Matched" value={totalMatches.toString()} icon={<Users />} color="text-blue-500" />
-                    <StatsCard label="Prochaines Interviews" value="4" icon={<Clock />} color="text-amber-500" />
+                    <StatsCard label="Prochaines Interviews" value="0" icon={<Clock />} color="text-amber-500" />
                 </div>
 
                 {/* Job Matches Section */}
                 <div className="space-y-10">
                     <div className="flex items-end justify-between">
                         <h2 className="text-2xl font-black tracking-tighter">Matching Intelligent & Gaps</h2>
-                        <button className="text-xs font-black uppercase tracking-[0.2em] text-primary border-b-2 border-primary/20 hover:border-primary transition-all">Nouveau Poste +</button>
+                        <button 
+                            onClick={() => router.push("/dashboard/recruiter/jobs/new")}
+                            className="text-xs font-black uppercase tracking-[0.2em] text-primary border-b-2 border-primary/20 hover:border-primary transition-all"
+                        >
+                            Nouveau Poste +
+                        </button>
                     </div>
 
                     <div className="space-y-6">
@@ -231,15 +236,14 @@ export default function RecruiterDashboard() {
                                                             </button>
 
                                                             {/* Action Button: Invite if not applied */}
-                                                            {!match.has_applied && (
+                                                            {/* Toujours afficher le "+" — invite un non-postulant, accepte un postulant */}
                                                                 <button
                                                                     onClick={() => handleInvite(job.id, match.candidate_id)}
                                                                     className="w-10 h-10 rounded-xl bg-primary/10 hover:bg-primary text-primary hover:text-white flex items-center justify-center transition-all shadow-lg shadow-primary/5"
-                                                                    title="Inviter dans le pipeline"
+                                                                    title={match.has_applied ? "Accepter dans le pipeline" : "Inviter dans le pipeline"}
                                                                 >
-                                                                    <Plus className="w-5 h-5" />
+                                                                <Plus className="w-5 h-5" />
                                                                 </button>
-                                                            )}
 
                                                             {/* Action Button: Go to pipeline if applied */}
                                                             <button

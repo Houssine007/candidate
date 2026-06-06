@@ -40,6 +40,10 @@ router = APIRouter()
 
 # Modèles Pydantic
 
+class ParseTextRequest(BaseModel):
+    text: str
+    context: Optional[str] = "experience"  # "experience" | "project" | "cv"
+
 class SkillLevel(BaseModel):
     skill_id: Optional[int] = None  # Optionnel si name fourni
     name: Optional[str] = None      # Alternative à id
@@ -81,6 +85,12 @@ class CandidateBase(BaseModel):
     is_active: bool = True
     is_visible: bool = True
     skills: List[SkillLevel] = []
+    job_title: Optional[str] = None
+    location: Optional[str] = None
+    remote_ok: Optional[bool] = False
+    photo_url: Optional[str] = None
+    links: Optional[dict] = None
+    projects: Optional[list] = None
 
 class CandidateCreate(CandidateBase):
     years_of_experience: Optional[float] = None
@@ -121,6 +131,14 @@ class CandidateResponse(BaseModel):
     is_visible: bool = True
     skills: List[dict]  # Custom dict pour inclure name
     
+    job_title: Optional[str] = None
+    location: Optional[str] = None
+    remote_ok: Optional[bool] = False
+    photo_url: Optional[str] = None
+    links: Optional[dict] = None
+    projects: Optional[list] = None
+    profile_completeness_score: Optional[float] = 0.0
+
     # Matching specific
     match_score: Optional[float] = None
     match_details: Optional[Any] = None
@@ -159,12 +177,30 @@ class CandidateResponse(BaseModel):
             experience_detail=obj.experience_detail,
             is_active=obj.is_active if obj.is_active is not None else True,
             is_visible=obj.is_visible if obj.is_visible is not None else True,
-            skills=skills
+            skills=skills,
+            job_title=obj.job_title,
+            location=obj.location,
+            remote_ok=obj.remote_ok if obj.remote_ok is not None else False,
+            photo_url=obj.photo_url,
+            links=obj.links,
+            projects=obj.projects,
+            profile_completeness_score=obj.profile_completeness_score if obj.profile_completeness_score is not None else 0.0,
         )
 
 
 
 # Endpoints
+@router.post("/me/parse-text")
+async def parse_text_for_skills(
+    req: ParseTextRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Parse a text with Groq to extract ROME skills and experience."""
+    from ..services.cv_service import parse_text_skills
+    result = await parse_text_skills(req.text, req.context)
+    return result
+
 @router.get("/me/", response_model=CandidateResponse)
 async def get_my_candidate_profile(
     db: Session = Depends(get_db),
@@ -311,6 +347,9 @@ async def update_onboarding_progress(
                     level=s.get("level"),
                     years_experience=s.get("years_experience")
                 ))
+
+    from ..services.completeness import calculate_completeness_score
+    db_candidate.profile_completeness_score = calculate_completeness_score(db_candidate)
 
     db.commit()
     db.refresh(db_candidate)

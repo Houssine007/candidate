@@ -5,6 +5,7 @@ from app.core.database import Base
 import enum
 
 class ApplicationStatus(str, enum.Enum):
+    APPLIED = "APPLIED"      # ← ajoute cette ligne
     PENDING = "PENDING"
     REVIEWING = "REVIEWING"
     SHORTLISTED = "SHORTLISTED"

@@ -187,7 +187,7 @@ export default function Home() {
                             const { applyToJob } = await import("@/lib/api");
                             const token = useAuthStore.getState().token;
                             if (token) {
-                              await applyToJob(job.id, token);
+                              await applyToJob(job.id, undefined, token);
                               alert("Candidature envoyée avec succès ! 🚀");
                             }
                           } catch (err: any) {
