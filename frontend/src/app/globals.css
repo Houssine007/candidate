@@ -71,10 +71,16 @@
   }
 
   .input-field {
-    @apply bg-secondary/5 border border-secondary/20 rounded-2xl p-3 font-medium text-foreground focus:ring-2 focus:ring-primary/20 focus:border-primary/40 outline-none transition-all;
+    background-color: rgba(56, 81, 112, 0.05);
+    border: 1px solid rgba(56, 81, 112, 0.2);
+    @apply rounded-2xl p-3 font-medium text-foreground outline-none transition-all;
+  }
+
+  .input-field:focus {
+    border-color: rgba(159, 211, 199, 0.4);
+    box-shadow: 0 0 0 2px rgba(159, 211, 199, 0.2);
   }
 }
-
 .glow-mesh {
   position: absolute;
   top: 0;

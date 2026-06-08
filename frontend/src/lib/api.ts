@@ -291,8 +291,8 @@ export async function getSkills(token?: string): Promise<Skill[]> {
   return apiFetch<Skill[]>("/api/skills/", {}, token)
 }
 
-export async function searchSkills(query: string): Promise<Skill[]> {
-  const all = await apiFetch<Skill[]>(`/api/skills/?limit=200`)
+export async function searchSkills(query: string, token?: string): Promise<Skill[]> {
+  const all = await apiFetch<Skill[]>(`/api/skills/?limit=200`, {}, token)
   return all.filter((s) => s.name.toLowerCase().includes(query.toLowerCase())).slice(0, 20)
 }
 

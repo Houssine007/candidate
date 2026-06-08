@@ -91,14 +91,14 @@ function computeScore(f: FormData): number {
   let s = 0;
   if (f.first_name && f.last_name && f.phone) s += 10;
   if (f.bio) s += 5;
-  if (f.links.github || f.links.portfolio) s += 10;
-  if (f.links.linkedin) s += 5;
+  if (f.links?.github || f.links?.portfolio) s += 10;
+  if (f.links?.linkedin) s += 5;
   if (f.formations) s += 10;
   if (f.experience_detail || f.years_of_experience > 0) s += 15;
-  if (f.projects.length >= 1) s += 10;
-  if (f.skills.length >= 5) s += 15;
+  if ((f.projects?.length ?? 0) >= 1) s += 10;
+  if ((f.skills?.length ?? 0) >= 5) s += 15;
   if (f.certifications) s += 5;
-  if (f.skills.length > 0) s += 10; // proxy for CV uploaded / skills present
+  if ((f.skills?.length ?? 0) > 0) s += 10;
   return Math.min(s, 100);
 }
 
@@ -123,25 +123,30 @@ export default function OnboardingPage() {
     if (!token) { setIsLoading(false); return; }
     getMyProfile(token).then(data => {
       if (!data) return;
-      setFormData(prev => ({
-        ...prev,
-        first_name: data.first_name || "",
-        last_name: data.last_name || "",
-        phone: data.phone || "",
-        bio: data.bio || "",
-        experience_detail: data.experience_detail || "",
-        formations: data.formations || "",
-        certifications: data.certifications || "",
-        years_of_experience: data.years_of_experience || 0,
-        education_level: data.education_level || 0,
-        skills: data.skills || [],
-        // new fields from extended profile
-        job_title: (data as any).job_title || "",
-        location: (data as any).location || "",
-        remote_ok: (data as any).remote_ok || false,
-        links: (data as any).links || { github: "", portfolio: "", linkedin: "", other: [] },
-        projects: (data as any).projects || [],
-      }));
+        const d = data as any;
+        setFormData(prev => ({
+          ...prev,
+          first_name: data.first_name || "",
+          last_name: data.last_name || "",
+          phone: data.phone || "",
+          bio: data.bio || "",
+          experience_detail: data.experience_detail || "",
+          formations: data.formations || "",
+          certifications: data.certifications || "",
+          years_of_experience: data.years_of_experience || 0,
+          education_level: data.education_level || 0,
+          skills: data.skills || [],
+          job_title: d.job_title || "",
+          location: d.location || "",
+          remote_ok: d.remote_ok ?? false,
+          links: {
+            github: d.links?.github || "",
+            portfolio: d.links?.portfolio || "",
+            linkedin: d.links?.linkedin || "",
+            other: d.links?.other || [],
+  },
+  projects: d.projects || [],
+}));
       if (data.cv_url || data.cv_text) setCvUploaded(true);
       if (data.onboarding_step && data.onboarding_step > 1) {
         setCurrentStep(Math.min(data.onboarding_step, STEPS.length - 1));
@@ -152,7 +157,7 @@ export default function OnboardingPage() {
   // ── Skill search debounce ───────────────────────────────────────────────────
   useEffect(() => {
     const t = setTimeout(async () => {
-      if (skillSearch.length > 1) setSkillResults(await searchSkills(skillSearch));
+      if (skillSearch.length > 1) setSkillResults(await searchSkills(skillSearch, token || undefined));
       else setSkillResults([]);
     }, 300);
     return () => clearTimeout(t);

@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     
     
     # Base de données
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/recruitment_db"
+    DATABASE_URL: str = "postgresql://postgres:Houssine.007@localhost:5432/recruitment_db"
     
     
     # Configuration des emails
