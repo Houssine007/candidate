@@ -69,18 +69,8 @@
   .badge-rh {
     @apply px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.1em];
   }
-
-  .input-field {
-    background-color: rgba(56, 81, 112, 0.05);
-    border: 1px solid rgba(56, 81, 112, 0.2);
-    @apply rounded-2xl p-3 font-medium text-foreground outline-none transition-all;
-  }
-
-  .input-field:focus {
-    border-color: rgba(159, 211, 199, 0.4);
-    box-shadow: 0 0 0 2px rgba(159, 211, 199, 0.2);
-  }
 }
+
 .glow-mesh {
   position: absolute;
   top: 0;
@@ -98,4 +88,71 @@
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+/* ── Job creation form fields ─────────────────────────────────────────────── */
+
+.form-input {
+  display: block;
+  width: 100%;
+  background-color: hsl(var(--background));
+  border: 1.5px solid rgba(100, 116, 139, 0.25);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  line-height: 1.5;
+}
+
+.form-input::placeholder {
+  color: rgba(100, 116, 139, 0.5);
+  font-weight: 400;
+}
+
+.form-input:focus {
+  border-color: rgba(159, 211, 199, 0.6);
+  box-shadow: 0 0 0 3px rgba(159, 211, 199, 0.12);
+}
+
+.form-input:hover:not(:focus) {
+  border-color: rgba(100, 116, 139, 0.4);
+}
+
+.col-label {
+  font-size: 0.5625rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(100, 116, 139, 0.45);
+}
+
+.field-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(100, 116, 139, 0.7);
+  margin-bottom: 0.5rem;
+}
+
+.field-input {
+  display: block;
+  width: 100%;
+  background-color: rgba(56, 81, 112, 0.05);
+  border: 1px solid rgba(56, 81, 112, 0.15);
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.field-input:focus {
+  border-color: rgba(159, 211, 199, 0.4);
+  box-shadow: 0 0 0 2px rgba(159, 211, 199, 0.1);
 }

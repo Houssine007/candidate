@@ -1,9 +1,9 @@
-from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from ..core.database import Base
 from sqlalchemy import Boolean
-from sqlalchemy import ForeignKey
+
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -18,7 +18,10 @@ class Job(Base):
     salary_min = Column(Float)
     salary_max = Column(Float)
     min_years_experience = Column(Float, default=0.0)
-    min_education_level = Column(Integer, default=0) # 0-8 (Bac+?)
+    min_education_level = Column(Integer, default=0)
+    contract_type = Column(String, nullable=True)   # CDI, CDD, Stage, Alternance, Freelance
+    start_date = Column(String, nullable=True)       # ex: "Dès que possible", "01/09/2025"
+    benefits = Column(JSON, nullable=True)           # ["Télétravail", "Tickets resto", ...]
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     

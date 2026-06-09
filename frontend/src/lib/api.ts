@@ -224,9 +224,6 @@ export async function getRecruiterJobsWithMatches(token: string): Promise<Job[]>
   return enriched
 }
 
-export async function createJob(job: Partial<Job>, token: string): Promise<Job> {
-  return apiFetch<Job>("/api/jobs/", { method: "POST", body: JSON.stringify(job) }, token)
-}
 
 export async function getJobApplications(jobId: number, token: string): Promise<Application[]> {
   return apiFetch<Application[]>(`/api/applications/job/${jobId}/`, {}, token)
@@ -294,6 +291,43 @@ export async function getSkills(token?: string): Promise<Skill[]> {
 export async function searchSkills(query: string, token?: string): Promise<Skill[]> {
   const all = await apiFetch<Skill[]>(`/api/skills/?limit=200`, {}, token)
   return all.filter((s) => s.name.toLowerCase().includes(query.toLowerCase())).slice(0, 20)
+}
+
+
+export interface JobStandardSuggestion {
+  id: number
+  title: string
+  rome_code: string
+  category: string
+  description: string
+  suggested_skills: {
+    skill_id: number
+    skill_name: string
+    rome_code: string | null
+    min_level: number
+    is_mandatory: boolean
+  }[]
+}
+
+export async function suggestJobStandards(q: string, token: string): Promise<JobStandardSuggestion[]> {
+  return apiFetch<JobStandardSuggestion[]>(`/api/jobs/standards/suggest?q=${encodeURIComponent(q)}&limit=5`, {}, token)
+}
+
+export async function createJob(data: {
+  title: string
+  description: string
+  location: string
+  company: string
+  min_years_experience: number
+  min_education_level: number
+  salary_min?: number
+  salary_max?: number
+  contract_type?: string
+  start_date?: string
+  benefits?: string[]
+  requirements: { skill_id: number; required_level: number; is_mandatory: boolean }[]
+}, token: string): Promise<Job> {
+  return apiFetch<Job>("/api/jobs/", { method: "POST", body: JSON.stringify(data) }, token)
 }
 
 export async function getOrgTree(token: string): Promise<OrgUnitTree[]> {
