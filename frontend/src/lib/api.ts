@@ -394,6 +394,18 @@ export async function getInternalRoles(token: string): Promise<InternalRole[]> {
 }
 
 
+export async function confirmHire(
+  appId: number,
+  jobTitle: string,
+  token: string
+): Promise<Application> {
+  return apiFetch<Application>(
+    `/api/applications/${appId}/confirm-hire`,
+    { method: "POST", body: JSON.stringify({ job_title: jobTitle }) },
+    token
+  )
+}
+
 
 // ─── LMS ─────────────────────────────────────────────────────────────────────
 

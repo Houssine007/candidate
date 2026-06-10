@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { getJob, getJobApplications, updateApplicationStatus, getInternalMatches, assignCourse, getLMSCourses, Application, Job, InternalMatch, LMSCourse } from "@/lib/api"
+import { getJob, getJobApplications, updateApplicationStatus, getInternalMatches, assignCourse, getLMSCourses, Application, Job, InternalMatch, LMSCourse, confirmHire } from "@/lib/api"
 import { useAuthStore } from "@/lib/auth-store"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -56,7 +56,10 @@ export default function KanbanPage() {
     const [assigningCourse, setAssigningCourse] = React.useState<string | null>(null)
     const [assignedCourses, setAssignedCourses] = React.useState<Set<string>>(new Set())
 
-
+    // Modal confirmation d'intégration
+    const [hireModal, setHireModal] = React.useState<Application | null>(null)
+    const [hireTitle, setHireTitle] = React.useState("")
+    const [hireLoading, setHireLoading] = React.useState(false)
 
     const loadData = React.useCallback(async () => {
         if (!token || !jobId) return
@@ -110,8 +113,33 @@ export default function KanbanPage() {
         loadData()
     }, [loadData])
 
+    const handleConfirmHire = async () => {
+        if (!token || !hireModal) return
+        setHireLoading(true)
+        try {
+            await confirmHire(hireModal.id, hireTitle, token)
+            // Retirer du pipeline local
+            setApplications(prev => prev.filter(a => a.id !== hireModal.id))
+            setHireModal(null)
+            setSelectedApp(null)
+        } catch (e: any) {
+            alert(e.message || "Erreur lors de la confirmation")
+        } finally {
+            setHireLoading(false)
+        }
+    }
+
     const handleStatusChange = async (appId: number, newStatus: string) => {
         if (!token) return
+        // Intercepter ACCEPTED → ouvrir le modal de confirmation d'intégration
+        if (newStatus === "ACCEPTED") {
+            const app = applications.find(a => a.id === appId)
+            if (app) {
+                setHireTitle(job?.title || "")
+                setHireModal(app)
+            }
+            return
+        }
         setUpdatingAppId(appId)
         try {
             await updateApplicationStatus(appId, newStatus, token)
@@ -578,6 +606,56 @@ export default function KanbanPage() {
                 </div>
             )}
         </div>
+
+          {/* Modal confirmation d'intégration */}
+        {hireModal && (
+            <div className="fixed inset-0 bg-background/90 backdrop-blur-md z-[300] flex items-center justify-center p-6">
+                <div className="glass-panel p-10 rounded-[3rem] w-full max-w-md shadow-2xl border-emerald-500/30">
+                    <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                    </div>
+                    <h2 className="text-2xl font-black text-center mb-1">Confirmer l'intégration</h2>
+                    <p className="text-sm text-muted text-center mb-8">
+                        <strong>{hireModal.candidate_name}</strong> va rejoindre l'entreprise.<br />
+                        Les pourparlers sont terminés.
+                    </p>
+
+                    <div className="mb-6">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-muted mb-2 block">
+                            Poste / Fonction définitif(ve)
+                        </label>
+                        <input
+                            value={hireTitle}
+                            onChange={e => setHireTitle(e.target.value)}
+                            placeholder="ex: Développeur Backend Senior"
+                            className="w-full bg-secondary/10 border border-secondary/20 rounded-2xl px-5 py-4 outline-none focus:border-emerald-500/50 transition-all font-bold text-sm"
+                            autoFocus
+                        />
+                        <p className="text-[10px] text-muted mt-2">Ce titre sera utilisé dans le profil employé.</p>
+                    </div>
+
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => { setHireModal(null) }}
+                            className="flex-1 py-4 font-black uppercase text-xs text-muted hover:text-foreground transition-colors"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            onClick={handleConfirmHire}
+                            disabled={!hireTitle.trim() || hireLoading}
+                            className="flex-1 py-4 font-black uppercase text-xs bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                        >
+                            {hireLoading
+                                ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                : <CheckCircle2 className="w-4 h-4" />
+                            }
+                            Confirmer l'intégration
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
 
         {/* Modal assignation formations employé interne */}
         {selectedEmployee && (
