@@ -349,3 +349,51 @@ export async function updateEmployee(employeeId: number, data: Partial<Employee>
 export async function getInternalRoles(token: string): Promise<InternalRole[]> {
   return apiFetch<InternalRole[]>("/api/roles/", {}, token)
 }
+
+
+
+// ─── LMS ─────────────────────────────────────────────────────────────────────
+
+export interface LMSCourse {
+  _id: string
+  title: string
+  description: string
+  thumbnail?: string
+  skillId?: number
+  skillLevel?: number
+  status: "draft" | "published"
+  categoryId?: string
+}
+
+export interface LMSEnrollment {
+  _id: string
+  employeeId: number
+  courseId: LMSCourse
+  status: "assigned" | "in_progress" | "completed" | "abandoned"
+  assignedAt: string
+  startedAt?: string
+  completedAt?: string
+  finalScore?: number
+  progress?: {
+    completedSections: number
+    completedModules: number
+    quizResults: { quizId: string; score: number; passed: boolean; completedAt: string }[]
+  }
+}
+
+export async function getLMSCourses(token: string, skillId?: number): Promise<LMSCourse[]> {
+  const params = skillId ? `?skillId=${skillId}` : ""
+  return apiFetch<LMSCourse[]>(`/api/lms/courses${params}`, {}, token)
+}
+
+export async function getEmployeeEnrollments(employeeId: number, token: string): Promise<LMSEnrollment[]> {
+  return apiFetch<LMSEnrollment[]>(`/api/lms/enrollments?employeeId=${employeeId}`, {}, token)
+}
+
+export async function assignCourse(employeeId: number, courseId: string, token: string): Promise<LMSEnrollment> {
+  return apiFetch<LMSEnrollment>(
+    "/api/lms/enroll",
+    { method: "POST", body: JSON.stringify({ employee_id: employeeId, course_id: courseId }) },
+    token
+  )
+}

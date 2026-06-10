@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     FRANCE_TRAVAIL_CLIENT_ID: Optional[str] = None
     FRANCE_TRAVAIL_CLIENT_SECRET: Optional[str] = None
+    LMS_API_URL: str = "http://localhost:3001"
+
+    
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://192.168.56.1:3000"]
     

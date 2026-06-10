@@ -17,7 +17,8 @@ import {
     CheckCircle2,
     AlertCircle,
     Building2,
-    Plus
+    Plus,
+    BookOpen
 } from "lucide-react"
 import { inviteCandidate } from "@/lib/api"
 
@@ -92,6 +93,9 @@ export default function RecruiterDashboard() {
                     </button>
                     <button onClick={() => router.push("/dashboard/recruiter/organization")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
                         <Building2 className="w-4 h-4" /> Organisation
+                    </button>
+                    <button onClick={() => router.push("/dashboard/recruiter/formations")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
+                        <BookOpen className="w-4 h-4" /> Formations
                     </button>
                     <button onClick={() => router.push("/")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
                         <Briefcase className="w-4 h-4" /> Voir le Site

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
 from .core.config import settings
-from .api import auth, candidates, jobs, skills, applications, companies, recruiters, users, organization, employees, roles, catalog
+from .api import auth, candidates, jobs, skills, applications, companies, recruiters, users, organization, employees, roles, catalog, lms
 from . import models
 
 app = FastAPI(
@@ -43,6 +43,7 @@ app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(organization.router, prefix="/api/organization", tags=["Organization"])
 app.include_router(employees.router, prefix="/api/employees", tags=["Employees"])
 app.include_router(roles.router, prefix="/api/roles", tags=["Roles"])
+app.include_router(lms.router, prefix="/api/lms", tags=["LMS"])
 
 
 
