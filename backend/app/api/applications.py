@@ -75,7 +75,11 @@ async def invite_candidate(
     ).first()
 
     if existing:
-        # Si déjà dans le pipeline, retourner la candidature existante sans erreur
+        # Si candidat s'était auto-appliqué (APPLIED), on le fait entrer dans le pipeline
+        if existing.status == ApplicationStatus.APPLIED:
+            existing.status = ApplicationStatus.PENDING
+            db.commit()
+            db.refresh(existing)
         existing.job_title = job.title
         existing.candidate_name = f"{candidate.first_name} {candidate.last_name}"
         return existing
@@ -280,12 +284,47 @@ async def update_application_status(
 
     if not db_app:
         raise HTTPException(status_code=404, detail="Candidature non trouvée")
-    
+
+    previous_status = db_app.status
+
     if status_update.status:
         db_app.status = status_update.status
-    
+
     db.commit()
+
+     # Transition ACCEPTED → créer automatiquement l'employé
+    # Recharger explicitement après commit pour avoir les relations fraîches
+    if status_update.status == ApplicationStatus.ACCEPTED and previous_status != ApplicationStatus.ACCEPTED:
+        candidate = db.query(Candidate).options(
+            joinedload(Candidate.skills)
+        ).filter(Candidate.id == db_app.candidate_id).first()
+        job = db.query(Job).filter(Job.id == db_app.job_id).first()
+        if candidate and job:
+            try:
+                await _promote_candidate_to_employee(candidate, job, db)
+                print(f"✅ Employé créé pour candidat {candidate.id} ({candidate.first_name} {candidate.last_name})")
+            except Exception as e:
+                print(f"❌ Erreur promotion candidat→employé: {str(e)}")
+                import traceback; traceback.print_exc()
     db.refresh(db_app)
+
+    # On recharge AVANT le refresh pour garder les relations intactes
+    if status_update.status == ApplicationStatus.ACCEPTED and previous_status != ApplicationStatus.ACCEPTED:
+         # Recharger le candidat avec ses skills explicitement
+        candidate = db.query(Candidate).options(
+            joinedload(Candidate.skills)
+        ).filter(Candidate.id == db_app.candidate_id).first()
+        job = db.query(Job).filter(Job.id == db_app.job_id).first()
+        if candidate and job:
+            try:
+                await _promote_candidate_to_employee(candidate, job, db)
+                print(f"✅ Employé créé pour candidat {candidate.id} ({candidate.first_name} {candidate.last_name})")
+            except Exception as e:
+                print(f"❌ Erreur promotion candidat→employé: {str(e)}")
+                import traceback; traceback.print_exc()
+
+    db.refresh(db_app)
+
 
     # Enrichir pour le front (même logique que get_job_applications)
     db_app.job_title = db_app.job.title
@@ -308,3 +347,54 @@ async def update_application_status(
     }
 
     return db_app
+async def _promote_candidate_to_employee(candidate: Candidate, job: Job, db: Session):
+    """
+    Crée automatiquement un employé à partir d'un candidat accepté.
+    Idempotent : ne crée pas si l'employé existe déjà.
+    """
+    from ..models.employee import Employee, EmployeeSkill
+
+    # Vérifier si déjà employé (par user_id)
+    existing = db.query(Employee).filter(Employee.user_id == candidate.user_id).first()
+    if existing:
+        print(f"ℹ️ Candidat {candidate.id} est déjà employé (id={existing.id})")
+        return existing
+
+    # Résoudre le company_id
+    company_id = job.company_id
+    if not company_id and job.recruiter_id:
+        from ..models.recruiter import Recruiter
+        recruiter = db.query(Recruiter).filter(Recruiter.id == job.recruiter_id).first()
+        if recruiter:
+            company_id = recruiter.company_id
+
+    if not company_id:
+        print(f"❌ _promote: company_id introuvable pour job {job.id} (recruiter_id={job.recruiter_id})")
+        return None
+
+    employee = Employee(
+        user_id=candidate.user_id,
+        company_id=company_id,
+        first_name=candidate.first_name,
+        last_name=candidate.last_name,
+        email=candidate.email,
+        phone=candidate.phone,
+        job_title=job.title,
+        years_of_experience=candidate.years_of_experience or 0,
+        education_level=candidate.education_level or 0,
+        hire_date=datetime.utcnow(),
+    )
+    db.add(employee)
+    db.flush()
+
+    # Copier les compétences du candidat vers l'employé
+    for cs in candidate.skills:
+        db.add(EmployeeSkill(
+            employee_id=employee.id,
+            skill_id=cs.skill_id,
+            level=cs.level,
+            years_experience=cs.years_experience or 0,
+        ))
+
+    db.commit()
+    return employee

@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { useParams, useRouter } from "next/navigation"
-import { getJob, getJobApplications, updateApplicationStatus, Application, Job } from "@/lib/api"
+import { getJob, getJobApplications, updateApplicationStatus, getInternalMatches, assignCourse, getLMSCourses, Application, Job, InternalMatch, LMSCourse } from "@/lib/api"
 import { useAuthStore } from "@/lib/auth-store"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -20,7 +20,13 @@ import {
     TrendingUp,
     Target,
     FileText,
-    Briefcase
+    Briefcase,
+    Lightbulb,
+    GraduationCap,
+    ChevronDown,
+    ChevronUp,
+    Sparkles,
+    X
 } from "lucide-react"
 
 const COLUMNS = [
@@ -41,6 +47,16 @@ export default function KanbanPage() {
     const [loading, setLoading] = React.useState(true)
     const [updatingAppId, setUpdatingAppId] = React.useState<number | null>(null)
     const [selectedApp, setSelectedApp] = React.useState<Application | null>(null)
+    // Mobilité interne
+    const [internalMatches, setInternalMatches] = React.useState<InternalMatch[]>([])
+    const [showMobility, setShowMobility] = React.useState(false)
+    const [mobilityLoading, setMobilityLoading] = React.useState(false)
+    const [selectedEmployee, setSelectedEmployee] = React.useState<InternalMatch | null>(null)
+    const [lmsCourses, setLmsCourses] = React.useState<LMSCourse[]>([])
+    const [assigningCourse, setAssigningCourse] = React.useState<string | null>(null)
+    const [assignedCourses, setAssignedCourses] = React.useState<Set<string>>(new Set())
+
+
 
     const loadData = React.useCallback(async () => {
         if (!token || !jobId) return
@@ -57,6 +73,38 @@ export default function KanbanPage() {
             setLoading(false)
         }
     }, [jobId, token])
+
+    const loadInternalMatches = async () => {
+        if (!token || !jobId) return
+        setMobilityLoading(true)
+        try {
+            const [matches, courses] = await Promise.all([
+                getInternalMatches(Number(jobId), token),
+                getLMSCourses(token).catch(() => [])
+            ])
+            setInternalMatches(matches)
+            setLmsCourses(courses)
+        } catch (err) {
+            console.error(err)
+        } finally {
+            setMobilityLoading(false)
+        }
+    }
+
+    const handleAssignCourse = async (employeeId: number, courseId: string) => {
+        if (!token) return
+        setAssigningCourse(courseId)
+        try {
+            await assignCourse(employeeId, courseId, token)
+            setAssignedCourses(prev => new Set([...prev, `${employeeId}-${courseId}`]))
+        } catch (e) {
+            console.error(e)
+        } finally {
+            setAssigningCourse(null)
+        }
+    }
+
+
 
     React.useEffect(() => {
         loadData()
@@ -91,6 +139,7 @@ export default function KanbanPage() {
     )
 
     return (
+        <>
         <div className="min-h-screen bg-background text-foreground pb-12">
             <div className="glow-mesh" />
 
@@ -114,22 +163,104 @@ export default function KanbanPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
-                            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-secondary/10 rounded-xl border border-secondary/20">
-                                <Search className="w-4 h-4 text-muted" />
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher..."
-                                    className="bg-transparent border-none text-xs outline-none w-32 font-medium"
-                                />
-                            </div>
+                            <button
+                                onClick={() => { setShowMobility(!showMobility); if (!showMobility && internalMatches.length === 0) loadInternalMatches() }}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all ${showMobility ? 'bg-violet-500 text-white border-violet-500' : 'bg-violet-500/10 text-violet-500 border-violet-500/20 hover:bg-violet-500/20'}`}
+                            >
+                                <Sparkles className="w-4 h-4" />
+                                Mobilité Interne
+                                {internalMatches.length > 0 && <span className="bg-white/20 px-1.5 rounded-full">{internalMatches.length}</span>}
+                            </button>
                             <ThemeToggle />
                         </div>
                     </div>
                 </div>
             </header>
 
+            {/* Panneau Mobilité Interne */}
+            {showMobility && (
+                <div className="container mx-auto px-6 pt-28 pb-4">
+                    <div className="glass-panel rounded-[2rem] p-6 border-violet-500/20">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-violet-500/10 rounded-xl flex items-center justify-center">
+                                    <Sparkles className="w-5 h-5 text-violet-500" />
+                                </div>
+                                <div>
+                                    <h2 className="font-black text-lg">Mobilité Interne</h2>
+                                    <p className="text-[10px] text-muted font-medium">Employés qui pourraient combler ce besoin avec quelques formations</p>
+                                </div>
+                            </div>
+                            {mobilityLoading && <div className="w-5 h-5 border-2 border-violet-500/20 border-t-violet-500 rounded-full animate-spin" />}
+                        </div>
+
+                        {internalMatches.length === 0 && !mobilityLoading ? (
+                            <div className="text-center py-10 text-muted">
+                                <Users className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                                <p className="text-sm font-bold">Aucun employé interne ne correspond suffisamment à ce poste</p>
+                            </div>
+                        ) : (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {internalMatches.map(emp => (
+                                    <div key={emp.employee_id} className="bg-secondary/5 border border-secondary/10 rounded-2xl p-5 hover:border-violet-500/30 transition-all">
+                                        <div className="flex items-start justify-between mb-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-violet-500/10 rounded-xl flex items-center justify-center font-black text-violet-500 text-sm uppercase">
+                                                    {emp.full_name[0]}
+                                                </div>
+                                                <div>
+                                                    <p className="font-black text-sm">{emp.full_name}</p>
+                                                    <p className="text-[10px] text-muted uppercase font-bold">{emp.job_title}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className={`px-2 py-1 rounded-lg text-[11px] font-black ${emp.total_score >= 70 ? 'bg-green-500/10 text-green-500' : emp.total_score >= 50 ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>
+                                                    {Math.round(emp.total_score)}%
+                                                </div>
+                                                {emp.trainable && <p className="text-[9px] text-violet-500 font-bold mt-1">✓ Formable</p>}
+                                            </div>
+                                        </div>
+
+                                        {/* Barre de score */}
+                                        <div className="mb-4">
+                                            <div className="h-1.5 bg-secondary/20 rounded-full overflow-hidden">
+                                                <div className="h-full bg-gradient-to-r from-violet-500 to-blue-500 rounded-full transition-all" style={{ width: `${emp.total_score}%` }} />
+                                            </div>
+                                        </div>
+
+                                        {/* Gaps */}
+                                        {emp.gaps.filter(g => g.type === 'skill').length > 0 && (
+                                            <div className="mb-4">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-muted mb-2">Compétences à développer</p>
+                                                <div className="space-y-1.5">
+                                                    {emp.gaps.filter(g => g.type === 'skill').map((gap, i) => (
+                                                        <div key={i} className="flex items-center justify-between text-[10px]">
+                                                            <span className="font-bold text-foreground/80 truncate">{gap.skill_name || `Skill #${gap.id}`}</span>
+                                                            <span className="text-muted shrink-0 ml-2">{gap.actual} → {gap.required}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <button
+                                            onClick={() => setSelectedEmployee(emp)}
+                                            className="w-full py-2 text-[10px] font-black uppercase tracking-widest bg-violet-500/10 text-violet-500 rounded-xl hover:bg-violet-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                                        >
+                                            <GraduationCap className="w-3.5 h-3.5" /> Assigner des formations
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+
+
             {/* Kanban Board */}
-            <main className="container mx-auto px-6 pt-32 h-[calc(100vh-80px)] overflow-x-auto">
+            <main className={`container mx-auto px-6 ${showMobility ? 'pt-4' : 'pt-32'} h-[calc(100vh-80px)] overflow-x-auto`}>
                 <div className="flex gap-6 min-w-max h-full pb-8">
                     {COLUMNS.map(col => {
                         const colApps = applications.filter(a => a.status === col.id)
@@ -447,5 +578,70 @@ export default function KanbanPage() {
                 </div>
             )}
         </div>
+
+        {/* Modal assignation formations employé interne */}
+        {selectedEmployee && (
+            <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
+                <div className="glass-panel p-8 rounded-[3rem] w-full max-w-lg shadow-2xl border-violet-500/20 max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between mb-6">
+                        <div>
+                            <h2 className="text-xl font-black">{selectedEmployee.full_name}</h2>
+                            <p className="text-xs text-muted">{selectedEmployee.job_title} · Score {Math.round(selectedEmployee.total_score)}%</p>
+                        </div>
+                        <button onClick={() => setSelectedEmployee(null)} className="p-2 hover:bg-secondary/10 rounded-xl">
+                            <X className="w-5 h-5" />
+                        </button>
+                    </div>
+
+                    {/* Gaps */}
+                    <div className="mb-6">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted mb-3">Compétences à développer</p>
+                        <div className="space-y-2">
+                            {selectedEmployee.gaps.filter(g => g.type === 'skill').map((gap, i) => {
+                                const relatedCourses = lmsCourses.filter(c =>
+                                    c.title.toLowerCase().includes((gap.skill_name || '').toLowerCase().split(' ')[0])
+                                )
+                                return (
+                                    <div key={i} className="bg-secondary/5 border border-secondary/10 rounded-2xl p-4">
+                                        <div className="flex items-center justify-between mb-3">
+                                            <p className="font-black text-sm">{gap.skill_name}</p>
+                                            <span className="text-[10px] text-muted">Niveau {gap.actual} → {gap.required}</span>
+                                        </div>
+                                        {relatedCourses.length > 0 ? (
+                                            <div className="space-y-2">
+                                                {relatedCourses.map(course => {
+                                                    const key = `${selectedEmployee.employee_id}-${course._id}`
+                                                    const assigned = assignedCourses.has(key)
+                                                    return (
+                                                        <div key={course._id} className="flex items-center justify-between gap-3 p-2 bg-background/50 rounded-xl">
+                                                            <p className="text-[11px] font-bold truncate flex-1">{course.title}</p>
+                                                            <button
+                                                                onClick={() => handleAssignCourse(selectedEmployee.employee_id, course._id)}
+                                                                disabled={assigned || assigningCourse === course._id}
+                                                                className={`shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black transition-all ${assigned ? 'bg-green-500/10 text-green-500' : 'bg-violet-500 text-white hover:bg-violet-600'} disabled:opacity-50`}
+                                                            >
+                                                                {assigned ? '✓ Assigné' : assigningCourse === course._id ? '...' : 'Assigner'}
+                                                            </button>
+                                                        </div>
+                                                    )
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <p className="text-[10px] text-muted italic">Aucun cours disponible pour cette compétence</p>
+                                        )}
+                                    </div>
+                                )
+                            })}
+                        </div>
+                    </div>
+
+                    <button onClick={() => setSelectedEmployee(null)} className="w-full py-3 font-black text-xs uppercase text-muted hover:text-foreground transition-colors">
+                        Fermer
+                    </button>
+                </div>
+            </div>
+        )}
+        </>
+
     )
 }

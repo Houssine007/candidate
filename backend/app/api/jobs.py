@@ -377,3 +377,81 @@ async def get_job_matches(
     response_dict["matching_candidates"] = matches
     
     return response_dict
+
+
+@router.get("/{job_id}/internal-matches")
+async def get_internal_mobility_matches(
+    job_id: int,
+    min_score: float = 30.0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Identifie les employés internes qui pourraient combler le besoin avec des formations.
+    Retourne les employés triés par score de matching avec leurs gaps de compétences.
+    """
+    if current_user.role not in ["ADMIN", "RECRUITER"]:
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
+    if not recruiter:
+        raise HTTPException(status_code=400, detail="Profil recruteur non trouvé")
+
+    job = db.query(Job).options(
+        joinedload(Job.requirements).joinedload(JobRequirement.skill)
+    ).filter(Job.id == job_id).first()
+
+    if not job:
+        raise HTTPException(status_code=404, detail="Job non trouvé")
+
+    # Injecter skill_name pour le matching
+    for req in job.requirements:
+        req.skill_name = req.skill.name if req.skill else f"Skill #{req.skill_id}"
+
+    # Charger les employés de l'entreprise avec leurs compétences
+    from ..models.employee import Employee, EmployeeSkill
+    employees = db.query(Employee).options(
+        joinedload(Employee.skills)
+    ).filter(Employee.company_id == recruiter.company_id).all()
+
+    if not employees:
+        return []
+
+    # Adapter les employés pour calculate_match_score (même interface que Candidate)
+    from ..services.matching import calculate_match_score
+
+    results = []
+    for emp in employees:
+        # Créer un wrapper qui expose la même interface que Candidate
+        class EmployeeWrapper:
+            def __init__(self, e):
+                self.skills = e.skills
+                self.years_of_experience = e.years_of_experience or 0
+                self.education_level = e.education_level or 0
+
+        wrapper = EmployeeWrapper(emp)
+        match = calculate_match_score(wrapper, job)
+
+        if match["total_score"] >= min_score:
+            # Enrichir les gaps avec le nom de la compétence
+            enriched_gaps = []
+            for gap in match["gaps"]:
+                if gap["type"] == "skill":
+                    req = next((r for r in job.requirements if r.skill_id == gap["id"]), None)
+                    skill_name = req.skill_name if req else f"Skill #{gap['id']}"
+                    enriched_gaps.append({**gap, "skill_name": skill_name})
+                else:
+                    enriched_gaps.append(gap)
+
+            results.append({
+                "employee_id": emp.id,
+                "full_name": f"{emp.first_name} {emp.last_name}",
+                "job_title": emp.job_title,
+                "total_score": match["total_score"],
+                "skill_score": match["skill_score"],
+                "gaps": enriched_gaps,
+                "detailed_skills": match["detailed_skills"],
+                "trainable": len([g for g in enriched_gaps if g["type"] == "skill"]) <= 3,
+            })
+
+    return sorted(results, key=lambda x: x["total_score"], reverse=True)

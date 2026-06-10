@@ -47,21 +47,29 @@ class EmployeeUpdate(BaseModel):
     education_level: Optional[int] = None
     skills: Optional[List[SkillLevel]] = None
 
+class SkillResponse(BaseModel):
+    skill_id: int
+    level: int
+    years_experience: float
+    certified: int = 0
+
+    class Config:
+        from_attributes = True
+
 class EmployeeResponse(BaseModel):
     id: int
     first_name: str
     last_name: str
-    email: str
-    phone: Optional[str]
-    job_title: str
-    org_unit_id: Optional[int]
-    internal_role_id: Optional[int]
-    manager_id: Optional[int]
-    years_of_experience: float
-    education_level: int
-    hire_date: datetime
-    skills: Optional[List[dict]] = []
-
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    job_title: Optional[str] = None
+    org_unit_id: Optional[int] = None
+    internal_role_id: Optional[int] = None
+    manager_id: Optional[int] = None
+    years_of_experience: float = 0
+    education_level: int = 0
+    hire_date: Optional[datetime] = None
+    skills: Optional[List[SkillResponse]] = []
 
     class Config:
         from_attributes = True
@@ -91,15 +99,30 @@ async def create_employee(
     if not recruiter:
         raise HTTPException(status_code=400, detail="Profil recruteur non trouvé")
 
-    # Créer employé
+    # Créer employé sans user_id (employé manuel, sans compte utilisateur)
     db_employee = Employee(
-        user_id=current_user.id, # À changer si on crée un employé pour quelqu'un d'autre
+        user_id=None, # À changer si on crée un employé pour quelqu'un d'autre
         company_id=recruiter.company_id,
         **employee.model_dump(exclude={"skills"})
     )
     db.add(db_employee)
     db.commit()
     db.refresh(db_employee)
+
+
+    # Ajouter les compétences si fournies
+    if employee.skills:
+        for s in employee.skills:
+            from ..models.employee import EmployeeSkill
+            db.add(EmployeeSkill(
+                employee_id=db_employee.id,
+                skill_id=s.skill_id,
+                level=s.level,
+                years_experience=s.years_experience,
+                certified=int(s.certified),
+            ))
+        db.commit()
+        db.refresh(db_employee)
     
     return db_employee
 
@@ -120,9 +143,11 @@ async def get_employees(
     if not recruiter:
         return []
         
-    query = db.query(Employee).filter(Employee.company_id == recruiter.company_id)
-    
-    if department: # Filtrage par unité org
+    query = db.query(Employee).options(
+        joinedload(Employee.skills)
+    ).filter(Employee.company_id == recruiter.company_id)
+
+    if department:
         from ..models.organization import OrgUnit
         query = query.join(OrgUnit).filter(OrgUnit.name.ilike(f"%{department}%"))
     
@@ -130,7 +155,6 @@ async def get_employees(
     return employees
 
 
-    return db_employee
 
 
 @router.put("/{employee_id}", response_model=EmployeeResponse)

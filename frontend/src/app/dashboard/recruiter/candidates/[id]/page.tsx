@@ -3,7 +3,7 @@
 import * as React from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { useAuthStore } from "@/lib/auth-store"
-import { getCandidate, CandidateProfile, updateApplicationStatus } from "@/lib/api"
+import { getCandidate, CandidateProfile, updateApplicationStatus, getLMSCourses, assignCourse, LMSCourse } from "@/lib/api"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
     ArrowLeft,
@@ -16,7 +16,11 @@ import {
     FileText,
     TrendingUp,
     Target,
-    AlertCircle
+    AlertCircle,
+    BookOpen,
+    Zap,
+    ChevronRight,
+    Check
 } from "lucide-react"
 
 export default function CandidateDetailPage() {
@@ -28,6 +32,8 @@ export default function CandidateDetailPage() {
     const [candidate, setCandidate] = React.useState<CandidateProfile | null>(null)
     const [loading, setLoading] = React.useState(true)
     const [error, setError] = React.useState<string | null>(null)
+    const [lmsCourses, setLmsCourses] = React.useState<LMSCourse[]>([])
+    const [assignedGaps, setAssignedGaps] = React.useState<Set<number>>(new Set())
 
     React.useEffect(() => {
         if (!user || user.role !== "RECRUITER" || !token) {
@@ -38,8 +44,13 @@ export default function CandidateDetailPage() {
         const loadCandidate = async () => {
             try {
                 const jId = jobId ? Number(jobId) : undefined
-                const data = await getCandidate(Number(id), token, jId)
-                setCandidate(data)
+                const [data, courses] = await Promise.allSettled([
+                    getCandidate(Number(id), token, jId),
+                    getLMSCourses(token)
+                ])
+                if (data.status === "fulfilled") setCandidate(data.value)
+                else setError("Impossible de charger le profil du candidat.")
+                if (courses.status === "fulfilled") setLmsCourses(courses.value)
             } catch (err) {
                 console.error(err)
                 setError("Impossible de charger le profil du candidat.")
@@ -51,12 +62,25 @@ export default function CandidateDetailPage() {
         loadCandidate()
     }, [id, token, user, router, jobId])
 
+    const handleAssignCourse = async (courseId: string, skillId: number, candidateUserId: number) => {
+        if (!token) return
+        try {
+            await assignCourse(candidateUserId, courseId, token)
+            setAssignedGaps(prev => new Set([...prev, skillId]))
+        } catch (err: any) {
+            alert(err.message || "Erreur lors de l'assignation")
+        }
+    }
+    const [promotedToEmployee, setPromotedToEmployee] = React.useState(false)
+
     const handleStatusUpdate = async (newStatus: string) => {
         if (!token || !candidate?.application_id) return
         try {
             await updateApplicationStatus(candidate.application_id, newStatus, token)
             setCandidate({ ...candidate, current_status: newStatus })
-            alert(`Statut mis à jour : ${newStatus}`)
+            if (newStatus === "ACCEPTED") {
+                setPromotedToEmployee(true)
+            }
         } catch (err) {
             console.error(err)
             alert("Erreur lors de la mise à jour du statut")
@@ -96,6 +120,28 @@ export default function CandidateDetailPage() {
             </nav>
 
             <main className="container mx-auto max-w-5xl pt-32 px-6">
+                {/* Bannière promotion employé */}
+                {promotedToEmployee && (
+                    <div className="mb-8 p-5 bg-green-500/10 border border-green-500/30 rounded-2xl flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-green-500/20 rounded-xl flex items-center justify-center">
+                                <Check className="w-4 h-4 text-green-400" />
+                            </div>
+                            <div>
+                                <p className="font-black text-green-400 text-sm">Candidat accepté — Profil employé créé automatiquement</p>
+                                <p className="text-xs text-muted/60 mt-0.5">{candidate.first_name} {candidate.last_name} est maintenant dans votre équipe.</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => router.push("/dashboard/recruiter/organization")}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-500/20 hover:bg-green-500/30 text-green-400 text-xs font-black rounded-xl transition-all"
+                        >
+                            Voir dans l'organisation <ChevronRight className="w-3 h-3" />
+                        </button>
+                    </div>
+                )}
+
+
                 {/* Header Profile Section */}
                 <header className="glass-panel p-10 md:p-16 rounded-[4rem] shadow-2xl mb-12 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-3xl -translate-y-1/2 translate-x-1/2" />
@@ -141,6 +187,9 @@ export default function CandidateDetailPage() {
                                 </div>
                             )}
                         </div>
+
+
+
 
                         {/* Status & Matching Summary */}
                         <div className="flex flex-col items-center md:items-end gap-6">
@@ -197,6 +246,92 @@ export default function CandidateDetailPage() {
                                 </div>
                             </div>
                         ))}
+                    </div>
+                )}
+
+
+                {/* Gaps & Formations suggérées */}
+                {candidate.match_details?.gaps && candidate.match_details.gaps.filter(g => g.type === "skill").length > 0 && (
+                    <div className="mb-12">
+                        <div className="flex items-center gap-3 mb-6">
+                            <Zap className="w-6 h-6 text-amber-400" />
+                            <h2 className="text-2xl font-black tracking-tight">Gaps & Formations suggérées</h2>
+                            <span className="text-xs font-black bg-amber-500/10 text-amber-400 px-2 py-1 rounded-lg border border-amber-500/20">
+                                {candidate.match_details.gaps.filter(g => g.type === "skill").length} gaps identifiés
+                            </span>
+                        </div>
+
+                        <div className="space-y-3">
+                            {candidate.match_details.detailed_skills
+                                ?.filter(s => s.actual < s.required)
+                                .map((gap, i) => {
+                                    // Trouver le skill_id depuis les compétences du candidat ou les gaps
+                                    const gapData = candidate.match_details!.gaps.find(
+                                        g => g.type === "skill" && g.required === gap.required
+                                    )
+                                    const skillId = (gapData as any)?.id
+                                    const relatedCourses = lmsCourses.filter(c => c.skillId === skillId)
+                                    const isAssigned = skillId && assignedGaps.has(skillId)
+
+                                    return (
+                                        <div key={i} className="p-5 bg-amber-500/5 border border-amber-500/15 rounded-2xl flex flex-col md:flex-row md:items-center gap-4">
+                                            {/* Gap info */}
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0" />
+                                                    <p className="font-black text-sm">{gap.skill_name}</p>
+                                                    <span className="text-[10px] font-bold bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded">
+                                                        Niv. {gap.actual} / {gap.required} requis
+                                                    </span>
+                                                </div>
+                                                {/* Level bar */}
+                                                <div className="flex items-center gap-2 ml-7">
+                                                    <div className="flex gap-1">
+                                                        {[1, 2, 3, 4].map(l => (
+                                                            <div key={l} className={`w-6 h-2 rounded-full transition-all ${
+                                                                l <= gap.actual ? "bg-amber-400" :
+                                                                l <= gap.required ? "bg-amber-400/20 border border-amber-400/30" :
+                                                                "bg-secondary/10"
+                                                            }`} />
+                                                        ))}
+                                                    </div>
+                                                    <span className="text-[10px] text-muted/50">
+                                                        +{gap.required - gap.actual} niveau{gap.required - gap.actual > 1 ? "x" : ""} à combler
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Cours suggérés */}
+                                            <div className="flex items-center gap-3 flex-shrink-0">
+                                                {relatedCourses.length > 0 ? (
+                                                    <div className="flex items-center gap-2">
+                                                        {relatedCourses.slice(0, 2).map(course => (
+                                                            <div key={course._id} className="flex items-center gap-2 px-3 py-2 bg-background border border-secondary/20 rounded-xl">
+                                                                <BookOpen className="w-3 h-3 text-primary flex-shrink-0" />
+                                                                <span className="text-xs font-bold max-w-32 truncate">{course.title}</span>
+                                                                <button
+                                                                    onClick={() => candidate.id && handleAssignCourse(course._id, skillId, candidate.id)}
+                                                                    disabled={!!isAssigned}
+                                                                    className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all flex-shrink-0 ${
+                                                                        isAssigned
+                                                                            ? "bg-green-500/20 text-green-400"
+                                                                            : "bg-primary text-white hover:bg-primary/80"
+                                                                    }`}
+                                                                    title={isAssigned ? "Déjà assigné" : "Assigner ce cours"}
+                                                                >
+                                                                    {isAssigned ? <Check className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-[10px] text-muted/40 italic">Aucun cours disponible pour ce gap</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )
+                                })}
+                        </div>
                     </div>
                 )}
 

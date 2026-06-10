@@ -113,6 +113,15 @@ export interface Skill {
   rome_code?: string
 }
 
+export interface EmployeeSkillEntry {
+  id?: number
+  skill_id: number
+  name?: string
+  level: number
+  years_experience: number
+  certified?: boolean
+}
+
 export interface Employee {
   id: number
   first_name: string
@@ -121,11 +130,14 @@ export interface Employee {
   department?: string
   org_unit_id?: number | null
   internal_role_id?: number | null
+  manager_id?: number | null
   email?: string
   phone?: string
   hire_date?: string
   years_of_experience?: number
   education_level?: number
+  is_active?: number
+  skills?: EmployeeSkillEntry[]
 }
 
 export interface InternalRole {
@@ -222,6 +234,21 @@ export async function getRecruiterJobsWithMatches(token: string): Promise<Job[]>
     })
   )
   return enriched
+}
+
+export interface InternalMatch {
+  employee_id: number
+  full_name: string
+  job_title: string
+  total_score: number
+  skill_score: number
+  gaps: { type: string; skill_name?: string; id?: number; required: number; actual: number }[]
+  detailed_skills: { skill_name: string; required: number; actual: number }[]
+  trainable: boolean
+}
+
+export async function getInternalMatches(jobId: number, token: string): Promise<InternalMatch[]> {
+  return apiFetch<InternalMatch[]>(`/api/jobs/${jobId}/internal-matches`, {}, token)
 }
 
 
@@ -342,8 +369,24 @@ export async function getEmployees(token: string): Promise<Employee[]> {
   return apiFetch<Employee[]>("/api/employees/", {}, token)
 }
 
+export async function createEmployee(
+  data: Omit<Employee, "id"> & { skills?: { skill_id: number; level: number; years_experience: number }[] },
+  token: string
+): Promise<Employee> {
+  return apiFetch<Employee>("/api/employees/", { method: "POST", body: JSON.stringify(data) }, token)
+}
+
 export async function updateEmployee(employeeId: number, data: Partial<Employee>, token: string): Promise<Employee> {
   return apiFetch<Employee>(`/api/employees/${employeeId}`, { method: "PUT", body: JSON.stringify(data) }, token)
+}
+
+
+export async function deleteEmployee(employeeId: number, token: string): Promise<void> {
+  return apiFetch<void>(`/api/employees/${employeeId}`, { method: "DELETE" }, token)
+}
+
+export async function getEmployee(employeeId: number, token: string): Promise<Employee> {
+  return apiFetch<Employee>(`/api/employees/${employeeId}`, {}, token)
 }
 
 export async function getInternalRoles(token: string): Promise<InternalRole[]> {
@@ -383,7 +426,8 @@ export interface LMSEnrollment {
 
 export async function getLMSCourses(token: string, skillId?: number): Promise<LMSCourse[]> {
   const params = skillId ? `?skillId=${skillId}` : ""
-  return apiFetch<LMSCourse[]>(`/api/lms/courses${params}`, {}, token)
+  const data = await apiFetch<LMSCourse[] | { courses: LMSCourse[] }>(`/api/lms/courses${params}`, {}, token)
+  return Array.isArray(data) ? data : (data as any).courses ?? []
 }
 
 export async function getEmployeeEnrollments(employeeId: number, token: string): Promise<LMSEnrollment[]> {

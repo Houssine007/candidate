@@ -143,6 +143,9 @@ export default function OrganizationPage() {
                     <button onClick={() => router.push("/dashboard/recruiter")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
                         <TrendingUp className="w-4 h-4" /> Overview
                     </button>
+                    <button onClick={() => router.push("/dashboard/recruiter/employees")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
+                        <Users className="w-4 h-4" /> Employés
+                    </button>
                     <button onClick={() => router.push("/dashboard/recruiter/organization")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm bg-primary/10 text-primary border border-primary/20">
                         <Building2 className="w-4 h-4" /> Organisation
                     </button>
