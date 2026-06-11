@@ -24,10 +24,14 @@ export interface Job {
   matching_candidates: MatchResult[]
 }
 
+export type Recommendation = "STRONG_FIT" | "POTENTIAL" | "WEAK_FIT"
+
 export interface MatchResult {
   candidate_id: number
   full_name: string
   score: number
+  potential_score?: number | null
+  recommendation?: Recommendation
   gaps: Gap[]
   has_applied: boolean
 }
@@ -35,8 +39,11 @@ export interface MatchResult {
 export interface Gap {
   type: string
   name?: string
+  id?: number
   required: number
   actual: number
+  category?: string | null
+  bridgeable?: boolean
 }
 
 export interface MatchDetails {
@@ -44,9 +51,12 @@ export interface MatchDetails {
   skill_score: number
   experience_score: number
   education_score: number
+  potential_score?: number | null
+  recommendation?: Recommendation
   gaps: Gap[]
   detailed_skills: DetailedSkill[]
-}
+} 
+
 
 export interface DetailedSkill {
   skill_name: string
@@ -453,3 +463,9 @@ export async function assignCourse(employeeId: number, courseId: string, token: 
     token
   )
 }
+
+
+
+
+
+

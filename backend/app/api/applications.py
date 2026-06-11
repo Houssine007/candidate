@@ -233,7 +233,8 @@ async def get_job_applications(
     apps = db.query(Application).options(
         joinedload(Application.candidate).joinedload(Candidate.skills).joinedload(CandidateSkill.skill)
     ).filter(
-        Application.job_id == job_id
+        Application.job_id == job_id,
+        Application.is_active.is_not(False)
     ).all()
     
     result = []

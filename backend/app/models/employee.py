@@ -13,7 +13,7 @@ class Employee(Base):
     # Informations personnelles
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
-    email = Column(String, nullable=False, unique=True, index=True)
+    email = Column(String, nullable=True, unique=True, index=True)
     phone = Column(String)
     
     # Informations professionnelles

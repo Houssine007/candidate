@@ -9,7 +9,7 @@ from ..models.application import Application, ApplicationStatus
 from ..models.user import User
 from ..models.recruiter import Recruiter
 from ..models.skill import Skill
-from ..models.candidate import Candidate
+from ..models.candidate import Candidate, CandidateSkill
 from ..services.matching import find_matching_candidates
 from .auth import get_current_user, get_current_user_optional
 from ..core.permissions import has_permission
@@ -355,7 +355,7 @@ async def get_job_matches(
     
     # Implémentation de l'algorithme de matching
     candidates = db.query(Candidate).options(
-        joinedload(Candidate.skills)
+        joinedload(Candidate.skills).joinedload(CandidateSkill.skill)
     ).all()
     
     matches = find_matching_candidates(job, candidates, min_score)
