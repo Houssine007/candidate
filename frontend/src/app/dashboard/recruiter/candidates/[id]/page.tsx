@@ -36,7 +36,7 @@ export default function CandidateDetailPage() {
     const [assignedGaps, setAssignedGaps] = React.useState<Set<number>>(new Set())
 
     React.useEffect(() => {
-        if (!user || user.role !== "RECRUITER" || !token) {
+        if (!user || (user.role !== "RECRUITER" && user.role !== "ADMIN") || !token) {
             router.push("/login")
             return
         }

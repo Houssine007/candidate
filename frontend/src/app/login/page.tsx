@@ -22,8 +22,10 @@ export default function LoginPage() {
         try {
             const { user, token } = await login(email, password)
             setAuth(user, token)
-            if (user.role === "RECRUITER") {
+            if (user.role === "RECRUITER" || user.role === "ADMIN") {
                 router.push("/dashboard/recruiter")
+            } else if (user.role === "CANDIDATE" || user.role === "EMPLOYEE") {
+                router.push("/dashboard/candidate")
             } else {
                 router.push("/dashboard/candidate")
             }

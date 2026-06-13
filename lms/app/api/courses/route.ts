@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
       .sort({ createdAt: -1 })
       .limit(limit)
       .skip(skip)
-      .lean();
 
     // Get total count for pagination
     const total = await Course.countDocuments(query);

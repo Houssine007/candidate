@@ -21,6 +21,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     is_active = Column(Boolean, default=True)
+    is_instructor = Column(Boolean, default=False)
 
     # Relations
     recruiter = relationship("Recruiter", uselist=False, back_populates="user")

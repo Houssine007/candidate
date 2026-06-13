@@ -8,7 +8,8 @@ export interface LMSUser {
   id: number;
   email: string;
   full_name: string;
-  role: 'ADMIN' | 'RECRUITER' | 'CANDIDATE';
+  role: 'ADMIN' | 'RECRUITER' | 'CANDIDATE' | 'EMPLOYEE';
+  is_instructor?: boolean;
   company_id?: number;
 }
 
@@ -22,11 +23,12 @@ export async function getAuthUser(req: NextRequest): Promise<LMSUser | null> {
     const { payload } = await jwtVerify(token, secret, { algorithms: ['HS256'] });
 
     return {
-      id: payload.sub as unknown as number,
+      id: parseInt(payload.sub as string),
       email: payload.email as string,
       full_name: payload.full_name as string,
       role: payload.role as LMSUser['role'],
       company_id: payload.company_id as number | undefined,
+      is_instructor: payload.is_instructor as boolean | undefined,
     };
   } catch {
     return null;
@@ -42,5 +44,12 @@ export async function requireAuth(req: NextRequest): Promise<LMSUser> {
 export async function requireRole(req: NextRequest, roles: LMSUser['role'][]): Promise<LMSUser> {
   const user = await requireAuth(req);
   if (!roles.includes(user.role)) throw new Error('Forbidden');
+  return user;
+}
+
+
+export async function requireInstructor(req: NextRequest): Promise<LMSUser> {
+  const user = await requireAuth(req);
+  if (!user.is_instructor && user.role !== 'ADMIN') throw new Error('Forbidden');
   return user;
 }

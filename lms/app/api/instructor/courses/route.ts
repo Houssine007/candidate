@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, categoryId, price, thumbnail, status } = body;
+    const { title, description, categoryId, price, thumbnail, status, skillId, skillLevel, companyId } = body;
 
     if (!title || !description || !categoryId) {
       return NextResponse.json({ error: 'Title, description, and category are required' }, { status: 400 });
@@ -62,11 +62,16 @@ export async function POST(request: NextRequest) {
       title,
       description,
       categoryId,
-      instructorId: decoded.userId,
+      instructorId: authUser.id,
+      instructorName: authUser.full_name,
       price: price || 0,
       thumbnail,
       status: status || 'draft',
       modules: [],
+      // Liaison plateforme RH (référence inter-services vers Postgres)
+      ...(skillId != null && { skillId }),
+      ...(skillLevel != null && { skillLevel }),
+      ...(companyId != null && { companyId }),
     });
 
     await course.save();

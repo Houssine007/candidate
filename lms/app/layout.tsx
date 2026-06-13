@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import SsoTokenCapture from "./components/SsoTokenCapture";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Dar Al-Ilm - Online Learning Platform",
-  description: "Learn at your own pace with Dar Al-Ilm. Access hundreds of courses created by experts.",
+  title: "RecruitPRO Academy - Formation interne",
+  description: "Espace formation de RecruitPRO. Montez en compétence et comblez vos écarts de poste avec des parcours conçus par vos formateurs internes.",
   icons: {
     icon: '/logo.svg',
     shortcut: '/logo.svg',
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <SsoTokenCapture />
         {children}
       </body>
     </html>

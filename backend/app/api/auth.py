@@ -37,6 +37,7 @@ class UserResponse(BaseModel):
     email: str
     full_name: str
     role: str
+    is_instructor: bool= False
 
     class Config:
         from_attributes = True
@@ -66,14 +67,21 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     )
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        sub: str = payload.get("sub")
+        if sub is None:
             raise credentials_exception
-        token_data = TokenData(username=username)
+        
     except JWTError:
         raise credentials_exception
     
-    user = db.query(User).filter(User.email == token_data.username).first()
+
+     # sub is user id (new tokens) — fall back to email for old tokens
+    try:
+        user_id = int(sub)
+        user = db.query(User).filter(User.id == user_id).first()
+    except (ValueError, TypeError):
+        user = db.query(User).filter(User.email == sub).first()
+
     if user is None:
         raise credentials_exception
     return user
@@ -84,17 +92,22 @@ async def get_current_user_optional(
 ) -> Optional[User]:
     if not token:
         return None
+       
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
+        sub: str = payload.get("sub")
+        if sub is None:
             return None
-        token_data = TokenData(username=username)
-    except JWTError:
+        user = None     
+        try:
+            user_id = int(sub)
+            user = db.query(User).filter(User.id == user_id).first()
+        except (ValueError, TypeError):
+            user = db.query(User).filter(User.email == sub).first()
+        return user
+        
+    except Exception:
         return None
-    
-    user = db.query(User).filter(User.email == token_data.username).first()
-    return user
 
 # Endpoints
 @router.post("/register", response_model=UserResponse)
@@ -136,7 +149,15 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
     
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": user.email}, expires_delta=access_token_expires
+        data={
+            "sub": str(user.id),
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role.value,
+            "is_instructor": user.is_instructor,
+            "company_id": getattr(user, "company_id", None),
+        },
+        expires_delta=access_token_expires,
     )
     return {"access_token": access_token, "token_type": "bearer"}
 

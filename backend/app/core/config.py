@@ -26,9 +26,17 @@ class Settings(BaseSettings):
     FRANCE_TRAVAIL_CLIENT_SECRET: Optional[str] = None
     LMS_API_URL: str = "http://localhost:3001"
 
+    # API ROME 4.0 (France Travail / francetravail.io)
+    # Laisser vide pour désactiver l'appel API (fallback statique uniquement).
+    ROME_CLIENT_ID: Optional[str] = None
+    ROME_CLIENT_SECRET: Optional[str] = None
+    ROME_SCOPE: str = "api_rome-metiersv1"
+    ROME_TOKEN_URL: str = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire"
+    ROME_API_BASE: str = "https://api.francetravail.io/partenaire/rome-metiers/v1/metiers"
+
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://192.168.56.1:3000"]
+    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://192.168.56.1:3000","http://localhost:3001"]
     
     
     # Base de données

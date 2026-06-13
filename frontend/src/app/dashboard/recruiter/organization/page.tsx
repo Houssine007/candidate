@@ -76,7 +76,7 @@ export default function OrganizationPage() {
     }
 
     React.useEffect(() => {
-        if (!user || user.role !== "RECRUITER") {
+        if (!user || (user.role !== "RECRUITER" && user.role !== "ADMIN") || !token) {
             router.push("/login")
             return
         }

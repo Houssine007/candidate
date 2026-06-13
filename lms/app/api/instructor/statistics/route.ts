@@ -6,17 +6,17 @@ import { requireRole } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   try {
+    // SSO unifiée: token JWT de la plateforme RH (FastAPI)
     const user = await requireRole(request, ['ADMIN', 'RECRUITER']);
     await connectDB();
 
-    // Get token from Authorization header
+    // Filtrer par entreprise de l'utilisateur si disponible
     const filter = user.company_id ? { companyId: user.company_id } : {};
 
     const totalCourses = await Course.countDocuments(filter);
     const publishedCourses = await Course.countDocuments({ ...filter, status: 'published' });
     const totalEnrollments = await Enrollment.countDocuments();
     const completedEnrollments = await Enrollment.countDocuments({ status: 'completed' });
-
 
     return NextResponse.json({
       statistics: {
@@ -34,4 +34,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

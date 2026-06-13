@@ -1,7 +1,14 @@
 import { AuthUser } from "./auth-store"
 
 const API_BASE = "http://localhost:8000"
+const LMS_BASE = process.env.NEXT_PUBLIC_LMS_URL || "http://localhost:3001"
 
+// SSO unifiée: ouvre le service LMS (RecruitPRO Academy) en transmettant le
+// token JWT RH via ?token=. Le LMS le capture et le persiste (cf. SsoTokenCapture).
+export function lmsLaunchUrl(token: string, path = "/"): string {
+  const sep = path.includes("?") ? "&" : "?"
+  return `${LMS_BASE}${path}${sep}token=${encodeURIComponent(token)}`
+}
 export interface SkillRequirement {
   skill_id: number
   required_level: number
@@ -249,12 +256,10 @@ export async function getRecruiterJobsWithMatches(token: string): Promise<Job[]>
 export interface InternalMatch {
   employee_id: number
   full_name: string
-  job_title: string
+  job_title?: string
   total_score: number
-  skill_score: number
-  gaps: { type: string; skill_name?: string; id?: number; required: number; actual: number }[]
-  detailed_skills: { skill_name: string; required: number; actual: number }[]
   trainable: boolean
+  gaps: { type: string; skill_name?: string; id?: number; required: number; actual: number }[]
 }
 
 export async function getInternalMatches(jobId: number, token: string): Promise<InternalMatch[]> {
@@ -408,13 +413,14 @@ export async function confirmHire(
   appId: number,
   jobTitle: string,
   token: string
-): Promise<Application> {
-  return apiFetch<Application>(
-    `/api/applications/${appId}/confirm-hire`,
+): Promise<void> {
+  return apiFetch<void>(
+    `/api/applications/${appId}/hire`,
     { method: "POST", body: JSON.stringify({ job_title: jobTitle }) },
     token
   )
 }
+
 
 
 // ─── LMS ─────────────────────────────────────────────────────────────────────
@@ -446,26 +452,70 @@ export interface LMSEnrollment {
   }
 }
 
-export async function getLMSCourses(token: string, skillId?: number): Promise<LMSCourse[]> {
-  const params = skillId ? `?skillId=${skillId}` : ""
-  const data = await apiFetch<LMSCourse[] | { courses: LMSCourse[] }>(`/api/lms/courses${params}`, {}, token)
-  return Array.isArray(data) ? data : (data as any).courses ?? []
-}
 
-export async function getEmployeeEnrollments(employeeId: number, token: string): Promise<LMSEnrollment[]> {
-  return apiFetch<LMSEnrollment[]>(`/api/lms/enrollments?employeeId=${employeeId}`, {}, token)
-}
 
-export async function assignCourse(employeeId: number, courseId: string, token: string): Promise<LMSEnrollment> {
-  return apiFetch<LMSEnrollment>(
-    "/api/lms/enroll",
-    { method: "POST", body: JSON.stringify({ employee_id: employeeId, course_id: courseId }) },
+
+
+
+// Active/désactive le statut formateur (is_instructor) d'un utilisateur (ADMIN/RH).
+export async function setInstructor(
+  userId: number,
+  token: string
+): Promise<{ id: number; is_instructor: boolean }> {
+  return apiFetch<{ id: number; is_instructor: boolean }>(
+    `/api/users/${userId}/set-instructor`,
+    { method: "PATCH" },
     token
   )
 }
 
+// ─── LMS ─────────────────────────────────────────────────────────────────────
+// Le LMS est un service séparé (port 3001). On l'appelle directement avec le
+// token JWT RH (SSO unifiée). Helper dédié car base URL ≠ API_BASE.
 
+async function lmsFetch<T>(
+  path: string,
+  options: RequestInit = {},
+  token?: string
+): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  }
+  if (token) headers["Authorization"] = `Bearer ${token}`
+  if (!headers["Content-Type"] && options.body && !(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json"
+  }
+  const res = await fetch(`${LMS_BASE}${path}`, { ...options, headers })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    throw new Error(err.error || err.detail || `HTTP ${res.status}`)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json()
+}
 
+export async function getLMSCourses(token: string): Promise<LMSCourse[]> {
+  const data = await lmsFetch<any>("/api/courses?limit=100", {}, token)
+  return Array.isArray(data) ? data : (data?.courses ?? [])
+}
+
+export async function getEmployeeEnrollments(employeeId: number, token: string): Promise<LMSEnrollment[]> {
+  const data = await lmsFetch<any>(`/api/enrollments?employeeId=${employeeId}`, {}, token)
+  return Array.isArray(data) ? data : (data?.enrollments ?? [])
+}
+
+export async function assignCourse(
+  employeeId: number,
+  courseId: string,
+  token: string
+): Promise<LMSEnrollment> {
+  const data = await lmsFetch<any>(
+    `/api/enrollments`,
+    { method: "POST", body: JSON.stringify({ employeeId, courseId }) },
+    token
+  )
+  return data?.enrollment ?? data
+}
 
 
 

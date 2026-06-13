@@ -49,6 +49,12 @@ const RECO: Record<string, { label: string; color: string; bg: string }> = {
     WEAK_FIT: { label: "Écart important", color: "text-red-400", bg: "bg-red-400/10" },
 }
 
+function bridgeBadge(level?: string) {
+    if (level === "exact")  return { label: "Pontable", color: "text-violet-500", bg: "bg-violet-500/10", border: "border-violet-500/20" }
+    if (level === "domain") return { label: "Proche",   color: "text-blue-500",   bg: "bg-blue-500/10",   border: "border-blue-500/20" }
+    return                         { label: "À former", color: "text-amber-600",  bg: "bg-amber-500/10",  border: "border-amber-500/20" }
+}
+
 
 export default function KanbanPage() {
     const { jobId } = useParams()
@@ -172,6 +178,16 @@ export default function KanbanPage() {
             setUpdatingAppId(null)
         }
     }
+    const sortedApps = (apps: Application[]) =>
+        [...apps].sort((a, b) => {
+            if (sortMode === "potential") {
+                const pa = (a.match_details as any)?.potential_score ?? -1
+                const pb = (b.match_details as any)?.potential_score ?? -1
+                return pb - pa
+            }
+            return (b.match_details?.total_score || 0) - (a.match_details?.total_score || 0)
+        })
+
 
     if (loading) return (
         <div className="min-h-screen flex items-center justify-center bg-background">
@@ -192,10 +208,7 @@ export default function KanbanPage() {
                 <div className="container mx-auto px-6 py-4">
                     <div className="glass-panel px-6 py-3 rounded-2xl flex items-center justify-between shadow-2xl">
                         <div className="flex items-center gap-6">
-                            <button
-                                onClick={() => router.back()}
-                                className="p-2 hover:bg-secondary/20 rounded-xl transition-colors text-muted hover:text-foreground"
-                            >
+                            <button onClick={() => router.back()} className="p-2 hover:bg-secondary/20 rounded-xl transition-colors text-muted hover:text-foreground">
                                 <ArrowLeft className="w-5 h-5" />
                             </button>
                             <div>
@@ -207,6 +220,21 @@ export default function KanbanPage() {
                         </div>
 
                         <div className="flex items-center gap-4">
+                            {/* Sort toggle */}
+                            <div className="flex items-center gap-1 p-1 bg-secondary/10 rounded-xl border border-secondary/20">
+                                <button
+                                    onClick={() => setSortMode("fit")}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${sortMode === "fit" ? "bg-primary text-background shadow" : "text-muted hover:text-foreground"}`}
+                                >
+                                    <Zap className="w-3 h-3" /> Fit
+                                </button>
+                                <button
+                                    onClick={() => setSortMode("potential")}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${sortMode === "potential" ? "bg-violet-500 text-white shadow" : "text-muted hover:text-foreground"}`}
+                                >
+                                    <Sparkles className="w-3 h-3" /> Potentiel
+                                </button>
+                            </div>
                             <button
                                 onClick={() => { setShowMobility(!showMobility); if (!showMobility && internalMatches.length === 0) loadInternalMatches() }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all ${showMobility ? 'bg-violet-500 text-white border-violet-500' : 'bg-violet-500/10 text-violet-500 border-violet-500/20 hover:bg-violet-500/20'}`}
@@ -482,7 +510,7 @@ export default function KanbanPage() {
                                         {selectedApp.match_details?.potential_score != null && (
                                             <div className="px-4 py-2 bg-violet-500/5 border border-violet-500/20 rounded-2xl flex items-center gap-2">
                                                 <Zap className="w-4 h-4 text-violet-500" />
-                                                <span className="text-xs font-bold font-sans text-violet-500">Potentiel: {Math.round(selectedApp.match_details.potential_score)}</span>
+                                                <span className="text-xs font-bold font-sans text-violet-500">Potentiel: {Math.round(selectedApp.match_details.potential_score)}%</span>
                                             </div>
                                         )}
                                         {selectedApp.match_details?.recommendation && RECO[selectedApp.match_details.recommendation] && (
@@ -590,25 +618,30 @@ export default function KanbanPage() {
                                             </div>
                                         ) : (
                                             selectedApp.match_details.gaps.map((gap: any, i: number) => {
-                                                const bridgeable = gap.type === 'skill' && gap.bridgeable
-                                                return (
-                                                <div key={i} className={`p-4 rounded-2xl flex items-center gap-4 border ${bridgeable ? 'bg-violet-500/5 border-violet-500/10' : 'bg-amber-500/5 border-amber-500/10'}`}>
-                                                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bridgeable ? 'bg-violet-500/10 text-violet-500' : 'bg-amber-500/10 text-amber-500'}`}>
-                                                        {bridgeable ? <Zap className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className={`text-[10px] font-black uppercase tracking-tighter ${bridgeable ? 'text-violet-600' : 'text-amber-600'}`}>Manque de {gap.type === 'skill' ? 'Compétence' : gap.type}</p>
-                                                        <p className="text-xs font-black">{gap.name || gap.type}</p>
-                                                        <p className="text-[9px] font-medium text-muted">Requis: {gap.required} • Actuel: {gap.actual}</p>
-                                                    </div>
-                                                    {gap.type === 'skill' && (
-                                                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap ${bridgeable ? 'bg-violet-500/10 text-violet-500' : 'bg-amber-500/10 text-amber-600'}`}>
-                                                            {bridgeable ? 'Pontable' : 'À former'}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                             )
-                                            })
+    const isSkill = gap.type === 'skill'
+    const bb = isSkill ? bridgeBadge(gap.bridge_level) : null
+    return (
+        <div key={i} className={`p-4 rounded-2xl flex items-center gap-4 border ${bb ? `${bb.bg} ${bb.border}` : 'bg-amber-500/5 border-amber-500/10'}`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${bb ? bb.bg : 'bg-amber-500/10'}`}>
+                {isSkill ? <Zap className={`w-4 h-4 ${bb?.color || 'text-amber-500'}`} /> : <TrendingUp className="w-4 h-4 text-amber-500" />}
+            </div>
+            <div className="flex-1">
+                <p className={`text-[10px] font-black uppercase tracking-tighter ${bb?.color || 'text-amber-600'}`}>
+                    {isSkill ? 'Compétence' : gap.type === 'experience' ? 'Expérience' : 'Études'}
+                </p>
+                <p className="text-xs font-black">{gap.name || gap.type}</p>
+                <p className="text-[9px] font-medium text-muted">Requis: {gap.required} • Actuel: {gap.actual}
+                    {gap.rome_code && <span className="ml-2 font-mono opacity-40">{gap.rome_code}</span>}
+                </p>
+            </div>
+            {isSkill && bb && (
+                <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap ${bb.bg} ${bb.color}`}>
+                    {bb.label}
+                </span>
+            )}
+        </div>
+    )
+})
                                         )}
                                     </div>
                                 </div>
@@ -739,23 +772,7 @@ export default function KanbanPage() {
                     </div>
 
 
-                    {/* Toggle Fit / Potentiel (Sprint 3) */}
-                            <div className="flex items-center gap-1 p-1 bg-secondary/10 rounded-xl border border-secondary/20">
-                                <button
-                                    onClick={() => setSortMode("fit")}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${sortMode === "fit" ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-muted hover:text-foreground"}`}
-                                    title="Trier par adéquation au besoin actuel"
-                                >
-                                    <Target className="w-3.5 h-3.5" /> Fit
-                                </button>
-                                <button
-                                    onClick={() => setSortMode("potential")}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${sortMode === "potential" ? "bg-violet-500 text-white shadow-lg shadow-violet-500/20" : "text-muted hover:text-foreground"}`}
-                                    title="Trier par potentiel (candidats formables)"
-                                >
-                                    <Zap className="w-3.5 h-3.5" /> Potentiel
-                                </button>
-                            </div>
+                    
 
                     {/* Gaps */}
                     <div className="mb-6">

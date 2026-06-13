@@ -12,11 +12,8 @@ interface Course {
     _id: string;
     name: string;
   } | string;
-  instructorId: {
-    _id: string;
-    firstName: string;
-    lastName: string;
-  } | string;
+  instructorId: number;
+  instructorName?: string;
   price: number;
   thumbnail?: string;
   status: 'draft' | 'published';
@@ -261,10 +258,10 @@ export default function Home() {
 
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
                 <Link
-                  href="/register"
+                  href="/courses"
                   className="bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 text-center"
                 >
-                  Start Learning Free
+                  Commencer une formation
                 </Link>
                 <Link
                   href="/courses"
@@ -340,9 +337,7 @@ export default function Home() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {courses.map((course) => {
                 const categoryName = typeof course.categoryId === 'object' && course.categoryId ? course.categoryId.name : 'Uncategorized';
-                const instructorName = typeof course.instructorId === 'object' && course.instructorId 
-                  ? `${course.instructorId.firstName} ${course.instructorId.lastName}`
-                  : 'Instructor';
+                const instructorName = course.instructorName || 'Formateur';
                 
                 return (
                   <div
@@ -459,10 +454,10 @@ export default function Home() {
             Join thousands of students already learning with Dar Al-Ilm
           </p>
           <Link
-            href="/register"
+            href="/courses"
             className="inline-block bg-white text-blue-600 hover:bg-blue-50 active:bg-blue-100 px-6 sm:px-8 py-3 sm:py-4 rounded-xl font-bold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 border-2 border-white hover:border-blue-200"
           >
-            Get Started Today
+            Voir les formations
           </Link>
         </div>
       </section>

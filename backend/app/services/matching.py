@@ -20,6 +20,13 @@ def _skill_category(obj) -> Optional[str]:
         return getattr(skill, "category", None)
     return None
 
+def _skill_rome(obj) -> Optional[str]:
+    """Code ROME complet du skill (ex. 'M1805'), ou None si absent."""
+    skill = getattr(obj, "skill", None)
+    if skill is not None:
+        rome = getattr(skill, "rome_code", None)
+        return rome.strip().upper() if rome else None
+    return None
 
 def _skill_name(req) -> str:
     if hasattr(req, "skill_name") and req.skill_name:
@@ -38,10 +45,11 @@ def compute_potential_score(
     via de la formation. 100% de signaux factuels positifs, aucun malus.
 
     Principe (cf. conception Sprint 3) :
-    - Un gap est "pontable" si le candidat possède déjà un autre skill de la
-      MÊME catégorie (compétence transférable) -> poids 1.0
-    - Sinon le gap est "dur" (à apprendre de zéro) -> poids 0.3
-    - Bonus certifications : preuve d'auto-formation.
+    Adjacence basée sur le référentiel ROME (hybride pondéré) :
+    - même sous-domaine ROME (ex. M1805 == M1805) → poids 1.0  (bridge "exact")
+    - même grand domaine ROME (ex. M18xx ~ M18xx)  → poids 0.6  (bridge "domain")
+    - sinon                                        → poids 0.3  (à former)
+    - Bonus certifications                         → +12 pts
 
     Retourne None si le candidat n'a aucun gap (l'axe potentiel n'est alors
     pas pertinent : on s'appuie sur le fit_score).
@@ -50,21 +58,30 @@ def compute_potential_score(
         return None
 
     # Catégories que le candidat maîtrise déjà (skill possédé, niveau > 0)
-    candidate_categories = set()
+    # Codes ROME que le candidat maîtrise déjà (skill possédé, niveau > 0)
+    cand_rome_full = set()       # sous-domaines complets : "M1805"
+    cand_rome_domain = set()     # grands domaines : "M"
+
     for cs in candidate.skills:
         if (cs.level or 0) > 0:
-            cat = _skill_category(cs)
-            if cat:
-                candidate_categories.add(cat)
-
+            rome = _skill_rome(cs)
+            if rome:
+                cand_rome_full.add(rome)
+                cand_rome_domain.add(rome[0])
     total_weight = 0.0
     for gap in skill_gaps:
-        gap_category = gap.get("category")
-        if gap_category and gap_category in candidate_categories:
+        gap_rome = gap.get("rome_code")
+        if gap_rome and gap_rome in cand_rome_full:
             gap["bridgeable"] = True
+            gap["bridge_level"] = "exact"
             total_weight += 1.0
+        elif gap_rome and gap_rome[0] in cand_rome_domain:
+            gap["bridgeable"] = True
+            gap["bridge_level"] = "domain"
+            total_weight += 0.6    
         else:
             gap["bridgeable"] = False
+            gap["bridge_level"] = "none"
             total_weight += 0.3
 
     adjacency_ratio = total_weight / len(skill_gaps)  # ∈ [0.3 .. 1.0]
@@ -127,6 +144,7 @@ def calculate_match_score(candidate: Candidate, job: Any) -> Dict[str, Any]:
                     "required": req.required_level,
                     "actual": candidate_level,
                     "category": _skill_category(req),
+                    "rome_code": _skill_rome(req),
                 }
                 gaps.append(gap_entry)
                 skill_gaps.append(gap_entry)

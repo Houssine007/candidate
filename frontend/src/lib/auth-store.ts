@@ -6,6 +6,7 @@ export interface AuthUser {
   email: string
   full_name: string
   role: "CANDIDATE" | "RECRUITER" | "ADMIN" | "EMPLOYEE"
+  is_instructor?: boolean
 }
 
 interface AuthState {

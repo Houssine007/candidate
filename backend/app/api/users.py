@@ -93,6 +93,19 @@ async def update_user(user_id: int, user_data: UserUpdate, db: Session = Depends
     db.refresh(user)
     return user
 
+@router.patch("/{user_id}/set-instructor")
+async def set_instructor(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if current_user.role.value not in ("ADMIN", "RECRUITER"):
+        raise HTTPException(status_code=403, detail="Réservé aux admins et recruteurs")
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="Utilisateur non trouvé")
+    user.is_instructor = not user.is_instructor
+    db.commit()
+    db.refresh(user)
+    return {"id": user.id, "is_instructor": user.is_instructor}
+
+
 @router.delete("/{user_id}")
 async def delete_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role != UserRole.ADMIN:

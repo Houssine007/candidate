@@ -3,7 +3,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 export interface ICategory extends Document {
   name: string;
   description?: string;
-  instructorId: mongoose.Types.ObjectId;
+  instructorId: number;          // ID PostgreSQL de l'utilisateur formateur (plateforme RH)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -20,9 +20,9 @@ const CategorySchema = new Schema<ICategory>(
       trim: true,
     },
     instructorId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
+      type: Number,
       required: true,
+      index: true,
     },
   },
   {

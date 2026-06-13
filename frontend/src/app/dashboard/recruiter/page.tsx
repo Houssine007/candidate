@@ -29,7 +29,7 @@ export default function RecruiterDashboard() {
     const [loading, setLoading] = React.useState(true)
 
     React.useEffect(() => {
-        if (!user || user.role !== "RECRUITER" || !token) {
+        if (!user || (user.role !== "RECRUITER" && user.role !== "ADMIN") || !token) {
             router.push("/login")
             return
         }

@@ -16,6 +16,16 @@ interface Category {
   _id: string;
   name: string;
 }
+// Compétence venant de la plateforme RH (Postgres, via API REST :8000)
+interface RHSkill {
+  id: number;
+  name: string;
+  category?: string;
+  rome_code?: string;
+}
+
+const RH_API_BASE =
+  process.env.NEXT_PUBLIC_RH_API_BASE || 'http://localhost:8000';
 
 export default function CreateCoursePage() {
   const router = useRouter();
@@ -26,6 +36,8 @@ export default function CreateCoursePage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [rhSkills, setRhSkills] = useState<RHSkill[]>([]);
+  const [rhSkillsError, setRhSkillsError] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -34,6 +46,8 @@ export default function CreateCoursePage() {
     price: 0,
     thumbnail: '',
     status: 'draft' as 'draft' | 'published',
+    skillId: '' as string,      // compétence RH validée par ce cours
+    skillLevel: 0 as number,    // niveau atteint à l'issue (1-4)
   });
 
   useEffect(() => {
@@ -65,6 +79,7 @@ export default function CreateCoursePage() {
           }
           setUser(data.user);
           fetchCategories(token);
+          fetchRHSkills();
         }
         setLoading(false);
       })
@@ -88,6 +103,23 @@ export default function CreateCoursePage() {
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+    }
+  };
+
+  // Récupère les compétences depuis la plateforme RH (appel direct service-à-service)
+  const fetchRHSkills = async () => {
+    try {
+      const res = await fetch(`${RH_API_BASE}/api/skills/?limit=300`);
+      if (res.ok) {
+        const data = await res.json();
+        setRhSkills(Array.isArray(data) ? data : []);
+        setRhSkillsError(false);
+      } else {
+        setRhSkillsError(true);
+      }
+    } catch (error) {
+      console.error('Error fetching RH skills:', error);
+      setRhSkillsError(true);
     }
   };
 
@@ -125,13 +157,18 @@ export default function CreateCoursePage() {
 
     try {
       const token = localStorage.getItem('token');
+      const payload = {
+        ...formData,
+        skillId: formData.skillId ? parseInt(formData.skillId) : undefined,
+        skillLevel: formData.skillLevel || undefined,
+      };
       const res = await fetch('/api/instructor/courses', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {
@@ -486,6 +523,65 @@ export default function CreateCoursePage() {
                   <option value="published">Published</option>
                 </select>
               </div>
+              {/* Liaison plateforme RH — compétence validée par ce cours */}
+              <div className="p-4 bg-violet-50 border border-violet-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                  <span className="text-sm font-semibold text-violet-700">
+                    Liaison RH — Compétence validée
+                  </span>
+                  <span className="text-xs text-violet-500">(optionnel)</span>
+                </div>
+                <p className="text-xs text-gray-500 mb-4">
+                  Reliez ce cours à une compétence de la plateforme RH. À la réussite,
+                  l&apos;apprenant validera cette compétence au niveau choisi (utilisé par le matching et la mobilité interne).
+                </p>
+
+                {rhSkillsError ? (
+                  <p className="text-xs text-red-500">
+                    Impossible de joindre la plateforme RH ({RH_API_BASE}). Vérifiez qu&apos;elle est démarrée.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="skillId" className="block text-sm font-medium text-gray-700 mb-2">
+                        Compétence
+                      </label>
+                      <select
+                        id="skillId"
+                        value={formData.skillId}
+                        onChange={(e) => setFormData({ ...formData, skillId: e.target.value })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none transition-colors"
+                      >
+                        <option value="">Aucune</option>
+                        {rhSkills.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}{s.rome_code ? ` (${s.rome_code})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="skillLevel" className="block text-sm font-medium text-gray-700 mb-2">
+                        Niveau validé
+                      </label>
+                      <select
+                        id="skillLevel"
+                        value={formData.skillLevel}
+                        onChange={(e) => setFormData({ ...formData, skillLevel: parseInt(e.target.value) })}
+                        disabled={!formData.skillId}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none transition-colors disabled:bg-gray-100 disabled:text-gray-400"
+                      >
+                        <option value={0}>—</option>
+                        <option value={1}>Niveau 1 — Notions</option>
+                        <option value={2}>Niveau 2 — Intermédiaire</option>
+                        <option value={3}>Niveau 3 — Confirmé</option>
+                        <option value={4}>Niveau 4 — Expert</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
 
               <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-200">
                 <Link
