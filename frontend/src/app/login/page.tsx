@@ -24,10 +24,12 @@ export default function LoginPage() {
             setAuth(user, token)
             if (user.role === "RECRUITER" || user.role === "ADMIN") {
                 router.push("/dashboard/recruiter")
-            } else if (user.role === "CANDIDATE" || user.role === "EMPLOYEE") {
+           } else if (user.role === "EMPLOYEE") {
+                router.push("/dashboard/employee")
+            } else if (user.role === "CANDIDATE") {
                 router.push("/dashboard/candidate")
             } else {
-                router.push("/dashboard/candidate")
+                router.push("/")
             }
         } catch (err) {
             setError("Email ou mot de passe incorrect")

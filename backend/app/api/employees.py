@@ -157,6 +157,61 @@ async def get_employees(
 
 
 
+
+
+
+
+
+@router.get("/me", response_model=EmployeeResponse)
+async def get_current_employee(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Récupérer le profil complet de l'employé actuellement connecté"""
+    from sqlalchemy.orm import joinedload
+
+    if current_user.role.value != "EMPLOYEE":
+        raise HTTPException(
+            status_code=403,
+            detail="Cet endpoint est réservé aux employés"
+        )
+
+    employee = db.query(Employee).options(
+        joinedload(Employee.skills),
+        joinedload(Employee.internal_role),
+        joinedload(Employee.manager)
+    ).filter(Employee.user_id == current_user.id).first()
+
+    if not employee:
+        raise HTTPException(
+            status_code=404,
+            detail="Profil employé non trouvé"
+        )
+
+    return employee
+
+
+
+@router.get("/{employee_id}", response_model=EmployeeResponse)
+async def get_employee(
+    employee_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Détail d'un employé"""
+    from ..models.recruiter import Recruiter
+    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
+    
+    employee = db.query(Employee).filter(
+        Employee.id == employee_id,
+        Employee.company_id == recruiter.company_id
+    ).first()
+    
+    if not employee:
+        raise HTTPException(status_code=404, detail="Employé non trouvé")
+    return employee
+
+
 @router.put("/{employee_id}", response_model=EmployeeResponse)
 async def update_employee(
     employee_id: int,
@@ -186,6 +241,7 @@ async def update_employee(
     return db_employee
 
 
+
 @router.delete("/{employee_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_employee(
     employee_id: int,
@@ -208,26 +264,6 @@ async def delete_employee(
     db.delete(db_employee)
     db.commit()
     return None
-
-
-@router.get("/{employee_id}", response_model=EmployeeResponse)
-async def get_employee(
-    employee_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Détail d'un employé"""
-    from ..models.recruiter import Recruiter
-    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
-    
-    employee = db.query(Employee).filter(
-        Employee.id == employee_id,
-        Employee.company_id == recruiter.company_id
-    ).first()
-    
-    if not employee:
-        raise HTTPException(status_code=404, detail="Employé non trouvé")
-    return employee
 
 
 @router.get("/orgchart/tree")

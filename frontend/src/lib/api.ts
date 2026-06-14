@@ -518,4 +518,196 @@ export async function assignCourse(
 }
 
 
+// ─── Employee Dashboard ───────────────────────────────────────────────────────
+
+export interface EmployeeProfile {
+  id: number
+  first_name: string
+  last_name: string
+  email?: string
+  phone?: string
+  job_title?: string
+  org_unit_id?: number
+  internal_role_id?: number
+  manager_id?: number
+  years_of_experience: number
+  education_level: number
+  hire_date?: string
+  skills: Array<{
+    skill_id: number
+    level: number
+    years_experience: number
+    certified: number
+  }>
+}
+
+export interface UserPermissions {
+  permissions: string[]
+  internal_role?: {
+    id: number
+    name: string
+    description?: string
+  }
+}
+
+export async function getEmployeeMe(token: string): Promise<EmployeeProfile> {
+  return apiFetch<EmployeeProfile>(
+    `/api/employees/me`,
+    {},
+    token
+  )
+}
+
+export async function getUserPermissions(token: string): Promise<UserPermissions> {
+  return apiFetch<UserPermissions>(
+    `/api/users/me/permissions`,
+    {},
+    token
+  )
+}
+
+
+// ─── Internal Mobility ───────────────────────────────────────────────────────
+
+export interface InternalPositionRequirement {
+  skill_id: number
+  skill_name?: string
+  required_level: number
+  is_mandatory: boolean
+}
+
+export interface InternalPosition {
+  id: number
+  title: string
+  description?: string
+  department?: string
+  location?: string
+  salary_min?: number
+  salary_max?: number
+  status: "OPEN" | "CLOSED" | "FILLED"
+  posted_by?: number
+  posted_at: string
+  requirements: InternalPositionRequirement[]
+}
+
+export interface InternalApplication {
+  id: number
+  position_id: number
+  employee_id: number
+  status: "PENDING" | "REVIEWING" | "INTERVIEW" | "ACCEPTED" | "REJECTED"
+  motivation_letter?: string
+  applied_at: string
+  updated_at: string
+  position?: InternalPosition
+}
+
+export async function getInternalPositions(
+  token: string,
+  status?: string
+): Promise<InternalPosition[]> {
+  const url = `/internal-mobility/positions${status ? `?status=${status}` : ""}`
+  return apiFetch<InternalPosition[]>(url, {}, token)
+}
+
+export async function getInternalPosition(
+  positionId: number,
+  token: string
+): Promise<InternalPosition> {
+  return apiFetch<InternalPosition>(
+    `/internal-mobility/positions/${positionId}`,
+    {},
+    token
+  )
+}
+
+export async function getMyInternalApplications(
+  token: string,
+  status?: string
+): Promise<InternalApplication[]> {
+  const url = `/internal-mobility/my-applications${status ? `?status=${status}` : ""}`
+  return apiFetch<InternalApplication[]>(url, {}, token)
+}
+
+export async function applyToPosition(
+  positionId: number,
+  motivationLetter?: string,
+  token?: string
+): Promise<InternalApplication> {
+  return apiFetch<InternalApplication>(
+    `/internal-mobility/applications`,
+    {
+      method: "POST",
+      body: JSON.stringify({ position_id: positionId, motivation_letter: motivationLetter })
+    },
+    token
+  )
+}
+
+
+// ─── Trainings ───────────────────────────────────────────────────────────────
+
+export interface TrainingSkill {
+  skill_id: number
+  skill_name?: string
+  level_gained: number
+}
+
+export interface Training {
+  id: number
+  title: string
+  description?: string
+  category: string
+  duration_hours?: number
+  provider?: string
+  cost?: number
+  max_participants?: number
+  is_active: number
+  created_at: string
+  skills_taught: TrainingSkill[]
+}
+
+export interface TrainingEnrollment {
+  id: number
+  employee_id: number
+  training_id: number
+  status: "PENDING" | "APPROVED" | "COMPLETED" | "CANCELLED"
+  enrolled_at: string
+  completed_at?: string
+  score?: number
+  feedback?: string
+  training?: Training
+}
+
+export async function getTrainingsCatalog(
+  token: string,
+  category?: string
+): Promise<Training[]> {
+  const url = `/trainings/catalog${category ? `?category=${category}` : ""}`
+  return apiFetch<Training[]>(url, {}, token)
+}
+
+export async function getMyTrainingEnrollments(
+  token: string,
+  status?: string
+): Promise<TrainingEnrollment[]> {
+  const url = `/trainings/my-enrollments${status ? `?status=${status}` : ""}`
+  return apiFetch<TrainingEnrollment[]>(url, {}, token)
+}
+
+export async function getTraining(
+  trainingId: number,
+  token: string
+): Promise<Training> {
+  return apiFetch<Training>(
+    `/trainings/${trainingId}`,
+    {},
+    token
+  )
+}
+
+
+
+
+
+
 

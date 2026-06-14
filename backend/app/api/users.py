@@ -38,6 +38,19 @@ class UserResponse(UserBase):
         from_attributes = True
 
 
+# Permissions Response
+
+
+
+class UserPermissionsResponse(BaseModel):
+    permissions: list[str]
+    internal_role: Optional[dict] = None
+
+    class Config:
+        from_attributes = True
+
+
+
 
 
 @router.post("/", response_model=UserResponse)
@@ -64,6 +77,51 @@ async def get_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_d
         raise HTTPException(status_code=403, detail="Accès réservé aux administrateurs")
     users = db.query(User).offset(skip).limit(limit).all()
     return users
+
+@router.get("/me/permissions", response_model=UserPermissionsResponse)
+async def get_current_user_permissions(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Retourne les permissions de l'utilisateur actuellement connecté"""
+    from ..models.employee import Employee
+    from ..models.permissions import InternalRole
+    from sqlalchemy.orm import joinedload
+
+    permissions = []
+    role_data = None
+
+    if current_user.role.value == "EMPLOYEE":
+        employee = db.query(Employee).filter(
+            Employee.user_id == current_user.id
+        ).options(
+            joinedload(Employee.internal_role).joinedload(InternalRole.permissions)
+        ).first()
+
+        if employee and employee.internal_role:
+            permissions = [p.name for p in employee.internal_role.permissions]
+            role_data = {
+                "id": employee.internal_role.id,
+                "name": employee.internal_role.name,
+                "description": employee.internal_role.description,
+            }
+
+    elif current_user.role.value in ("ADMIN", "RECRUITER"):
+        permissions = [
+            "employees:view",
+            "employees:manage",
+            "recruitment:view",
+            "recruitment:manage",
+            "org:manage",
+            "trainings:assign",
+            "roles:assign"
+        ]
+
+    return {
+        "permissions": permissions,
+        "internal_role": role_data
+    }
+
 
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -116,3 +174,6 @@ async def delete_user(user_id: int, db: Session = Depends(get_db), current_user:
     db.delete(user)
     db.commit()
     return {"detail": "Utilisateur supprimé"}
+
+
+
