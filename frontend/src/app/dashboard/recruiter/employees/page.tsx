@@ -15,6 +15,9 @@ import {
   OrgUnitTree,
 } from "@/lib/api"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { RecruiterSidebar } from "@/components/recruiter-sidebar"
+import { Toast, useToast } from "@/components/toast"
+import { useDialog } from "@/lib/use-dialog"
 import {
   Users,
   Briefcase,
@@ -72,7 +75,9 @@ export default function EmployeesPage() {
   const [editTarget, setEditTarget] = React.useState<Employee | null>(null)
   const [deleteTarget, setDeleteTarget] = React.useState<Employee | null>(null)
   const [saving, setSaving] = React.useState(false)
-  const [toast, setToast] = React.useState<{ type: "success" | "error"; msg: string } | null>(null)
+  const { toast, showToast } = useToast()
+  const modalRef = useDialog<HTMLDivElement>(modalMode !== null, () => setModalMode(null))
+  const deleteRef = useDialog<HTMLDivElement>(deleteTarget !== null, () => setDeleteTarget(null))
 
   // Form state
   const [form, setForm] = React.useState({
@@ -109,11 +114,6 @@ export default function EmployeesPage() {
     if (!user || user.role !== "RECRUITER") { router.push("/login"); return }
     loadData()
   }, [user, token])
-
-  const showToast = (type: "success" | "error", msg: string) => {
-    setToast({ type, msg })
-    setTimeout(() => setToast(null), 3500)
-  }
 
   const openCreate = () => {
     setForm({ first_name: "", last_name: "", email: "", phone: "", job_title: "", years_of_experience: 0, education_level: 0, org_unit_id: "", internal_role_id: "" })
@@ -193,7 +193,10 @@ export default function EmployeesPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+        <div role="status" aria-live="polite" className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+          <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted">Chargement des employés…</p>
+        </div>
       </div>
     )
   }
@@ -201,44 +204,12 @@ export default function EmployeesPage() {
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-secondary/5 border-r border-secondary/10 hidden lg:flex flex-col p-6 z-50">
-        <div className="flex items-center gap-3 mb-12">
-          <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center font-black text-primary text-sm">R</div>
-          <span className="font-extrabold tracking-tighter text-lg">RECRUITPRO</span>
-        </div>
-        <nav className="space-y-2 flex-1">
-          <button onClick={() => router.push("/dashboard/recruiter")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-            <TrendingUp className="w-4 h-4" /> Overview
-          </button>
-          <button onClick={() => router.push("/dashboard/recruiter/employees")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm bg-primary/10 text-primary border border-primary/20">
-            <Users className="w-4 h-4" /> Employés
-          </button>
-          <button onClick={() => router.push("/dashboard/recruiter/organization")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-            <Building2 className="w-4 h-4" /> Organisation
-          </button>
-          <button onClick={() => router.push("/dashboard/recruiter/formations")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-            <GraduationCap className="w-4 h-4" /> Formations
-          </button>
-          <button onClick={() => router.push("/")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-            <Briefcase className="w-4 h-4" /> Voir le Site
-          </button>
-        </nav>
-        <button onClick={() => { logout(); router.push("/") }} className="flex items-center gap-3 p-3 text-muted/60 hover:text-foreground hover:bg-secondary/10 rounded-xl transition-all font-bold text-xs uppercase tracking-widest mt-auto">
-          <LogOut className="w-4 h-4" /> Déconnexion
-        </button>
-      </aside>
+      <RecruiterSidebar active="employees" />
 
       {/* Main */}
       <main className="lg:ml-64 p-6 md:p-12">
         {/* Toast */}
-        {toast && (
-          <div className={`fixed top-6 right-6 z-[200] flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl text-sm font-bold transition-all ${
-            toast.type === "success" ? "bg-green-500 text-white" : "bg-red-500 text-white"
-          }`}>
-            {toast.type === "success" ? <CheckCircle className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-            {toast.msg}
-          </div>
-        )}
+        <Toast toast={toast} />
 
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div>
@@ -261,8 +232,8 @@ export default function EmployeesPage() {
             { label: "Non assignés", value: employees.filter(e => !e.org_unit_id).length, color: "text-amber-500" },
             { label: "Unités", value: orgUnits.length, color: "text-violet-500" },
           ].map(s => (
-            <div key={s.label} className="glass-panel p-6 rounded-[2rem]">
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted mb-1">{s.label}</p>
+            <div key={s.label} className="glass-panel p-6 rounded-panel-sm">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-1">{s.label}</p>
               <p className={`text-3xl font-black ${s.color}`}>{s.value}</p>
             </div>
           ))}
@@ -294,22 +265,35 @@ export default function EmployeesPage() {
         </div>
 
         {/* Employee Table */}
-        <div className="glass-panel rounded-[2.5rem] overflow-hidden shadow-xl shadow-black/5">
+        <div className="glass-panel rounded-panel overflow-hidden shadow-xl shadow-black/5">
           {filtered.length === 0 ? (
-            <div className="py-24 text-center">
-              <Users className="w-12 h-12 text-muted/20 mx-auto mb-4" />
-              <p className="text-muted font-bold">Aucun employé trouvé</p>
+            <div className="py-24 text-center max-w-sm mx-auto px-6">
+              <Users className="w-12 h-12 text-muted/30 mx-auto mb-4" />
+              {employees.length === 0 ? (
+                <>
+                  <p className="text-foreground font-bold mb-1">Aucun employé pour le moment</p>
+                  <p className="text-muted text-sm mb-6">Ajoutez votre premier collaborateur pour commencer à structurer votre organisation.</p>
+                  <button onClick={openCreate} className="btn-premium bg-primary text-primary-foreground py-2.5 px-6 text-xs inline-flex items-center gap-2">
+                    <UserPlus className="w-4 h-4" /> Nouvel Employé
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-foreground font-bold mb-1">Aucun résultat</p>
+                  <p className="text-muted text-sm">Aucun employé ne correspond à votre recherche ou au filtre sélectionné.</p>
+                </>
+              )}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-secondary/10">
-                    <th className="text-left px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted">Collaborateur</th>
-                    <th className="text-left px-6 py-5 text-[10px] font-black uppercase tracking-widest text-muted hidden md:table-cell">Poste</th>
-                    <th className="text-left px-6 py-5 text-[10px] font-black uppercase tracking-widest text-muted hidden lg:table-cell">Unité</th>
-                    <th className="text-left px-6 py-5 text-[10px] font-black uppercase tracking-widest text-muted hidden xl:table-cell">Embauche</th>
-                    <th className="text-right px-8 py-5 text-[10px] font-black uppercase tracking-widest text-muted">Actions</th>
+                    <th className="text-left px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-muted">Collaborateur</th>
+                    <th className="text-left px-6 py-5 text-[10px] font-bold uppercase tracking-widest text-muted hidden md:table-cell">Poste</th>
+                    <th className="text-left px-6 py-5 text-[10px] font-bold uppercase tracking-widest text-muted hidden lg:table-cell">Unité</th>
+                    <th className="text-left px-6 py-5 text-[10px] font-bold uppercase tracking-widest text-muted hidden xl:table-cell">Embauche</th>
+                    <th className="text-right px-8 py-5 text-[10px] font-bold uppercase tracking-widest text-muted">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-secondary/5">
@@ -350,18 +334,20 @@ export default function EmployeesPage() {
                         </p>
                       </td>
                       <td className="px-8 py-5">
-                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                           <button
                             onClick={() => openEdit(emp)}
-                            className="p-2 rounded-xl bg-secondary/10 hover:bg-primary hover:text-primary-foreground transition-all"
+                            className="p-2 rounded-xl bg-secondary/10 hover:bg-primary hover:text-primary-foreground transition-colors"
                             title="Modifier"
+                            aria-label={`Modifier ${emp.first_name} ${emp.last_name}`}
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => setDeleteTarget(emp)}
-                            className="p-2 rounded-xl bg-secondary/10 hover:bg-red-500 hover:text-white transition-all"
+                            className="p-2 rounded-xl bg-secondary/10 hover:bg-red-500 hover:text-white transition-colors"
                             title="Supprimer"
+                            aria-label={`Supprimer ${emp.first_name} ${emp.last_name}`}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -379,7 +365,7 @@ export default function EmployeesPage() {
       {/* Create / Edit Modal */}
       {modalMode && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6 overflow-y-auto">
-          <div className="glass-panel p-8 rounded-[3rem] w-full max-w-xl shadow-2xl border-primary/20 my-auto">
+          <div ref={modalRef} role="dialog" aria-modal="true" aria-label={modalMode === "create" ? "Nouvel employé" : "Modifier l'employé"} tabIndex={-1} className="glass-panel p-8 rounded-panel-lg w-full max-w-xl shadow-2xl border-primary/20 my-auto">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-black">
                 {modalMode === "create" ? "Nouvel Employé" : "Modifier l'Employé"}
@@ -458,7 +444,7 @@ export default function EmployeesPage() {
 
               <div className="flex gap-4 pt-4">
                 <button type="button" onClick={() => setModalMode(null)}
-                  className="flex-1 py-3 font-black uppercase text-xs text-muted hover:text-foreground transition-colors">
+                  className="flex-1 py-3 font-bold uppercase text-xs text-muted hover:text-foreground transition-colors">
                   Annuler
                 </button>
                 <button type="submit" disabled={saving}
@@ -474,7 +460,7 @@ export default function EmployeesPage() {
       {/* Delete Confirm Modal */}
       {deleteTarget && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-          <div className="glass-panel p-8 rounded-[3rem] w-full max-w-sm shadow-2xl border-red-500/20">
+          <div ref={deleteRef} role="dialog" aria-modal="true" aria-label="Confirmer la suppression" tabIndex={-1} className="glass-panel p-8 rounded-panel-lg w-full max-w-sm shadow-2xl border-red-500/20">
             <div className="w-14 h-14 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
               <AlertTriangle className="w-7 h-7 text-red-500" />
             </div>
@@ -483,9 +469,9 @@ export default function EmployeesPage() {
               <strong>{deleteTarget.first_name} {deleteTarget.last_name}</strong> sera définitivement supprimé du système.
             </p>
             <div className="flex gap-4">
-              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 font-black uppercase text-xs text-muted">Annuler</button>
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-3 font-bold uppercase text-xs text-muted">Annuler</button>
               <button onClick={handleDelete} disabled={saving}
-                className="flex-1 py-3 font-black uppercase text-xs bg-red-500 text-white rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-50">
+                className="flex-1 py-3 font-bold uppercase text-xs bg-red-500 text-white rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-50">
                 {saving ? "..." : "Supprimer"}
               </button>
             </div>

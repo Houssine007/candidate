@@ -509,6 +509,29 @@ async def upload_cv(
     
     return CandidateResponse.from_orm(candidate)
 
+@router.get("/me/profile-analysis")
+async def get_profile_analysis(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Analyse le profil du candidat et propose des suggestions d'évolution par domaine métier.
+    La liaison interne par code ROME est transparente : le candidat ne voit que des libellés.
+    """
+    candidate = (
+        db.query(Candidate)
+        .options(joinedload(Candidate.skills).joinedload(CandidateSkill.skill))
+        .filter(Candidate.user_id == current_user.id)
+        .first()
+    )
+    if not candidate:
+        raise HTTPException(status_code=404, detail="Profil candidat non trouvé")
+
+    from ..services.profile_analysis import analyse_profile
+    result = await analyse_profile(candidate, db)
+    return result
+
+
 @router.get("/{candidate_id}/", response_model=CandidateResponse)
 async def get_candidate(
     candidate_id: int,

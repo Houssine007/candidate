@@ -116,16 +116,16 @@ export default function NewJobPage() {
                     <h1 className="text-4xl font-black tracking-tight">Nouvelle Offre d'Emploi</h1>
                     <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary rounded-2xl border border-primary/20">
                         <Target className="w-4 h-4" />
-                        <span className="text-xs font-black uppercase tracking-widest">Sourcing Intelligent</span>
+                        <span className="text-xs font-bold uppercase tracking-widest">Sourcing Intelligent</span>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-8">
-                    <div className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5 space-y-8">
+                    <div className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5 space-y-8">
                         {/* Basic Info */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted/60 ml-2">Intitulé du Poste</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted/60 ml-2">Intitulé du Poste</label>
                                 <div className="relative">
                                     <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                                     <input 
@@ -138,7 +138,7 @@ export default function NewJobPage() {
                                 </div>
                             </div>
                             <div className="space-y-2">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted/60 ml-2">Localisation</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted/60 ml-2">Localisation</label>
                                 <div className="relative">
                                     <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
                                     <input 
@@ -155,7 +155,7 @@ export default function NewJobPage() {
                         {/* Salary & Experience */}
                         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div className="space-y-2 col-span-1">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted/60 ml-2">Salaire Min (€)</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted/60 ml-2">Salaire Min (€)</label>
                                 <input 
                                     type="number"
                                     value={formData.salary_min}
@@ -165,7 +165,7 @@ export default function NewJobPage() {
                                 />
                             </div>
                             <div className="space-y-2 col-span-1">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted/60 ml-2">Salaire Max (€)</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted/60 ml-2">Salaire Max (€)</label>
                                 <input 
                                     type="number"
                                     value={formData.salary_max}
@@ -175,7 +175,7 @@ export default function NewJobPage() {
                                 />
                             </div>
                             <div className="space-y-2 col-span-1">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted/60 ml-2">XP Min (ans)</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted/60 ml-2">XP Min (ans)</label>
                                 <input 
                                     type="number"
                                     value={formData.min_years_experience}
@@ -184,7 +184,7 @@ export default function NewJobPage() {
                                 />
                             </div>
                             <div className="space-y-2 col-span-1">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted/60 ml-2">Diplôme (Bac+X)</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted/60 ml-2">Diplôme (Bac+X)</label>
                                 <input 
                                     type="number"
                                     value={formData.min_education_level}
@@ -196,7 +196,7 @@ export default function NewJobPage() {
 
                         {/* Description */}
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-muted/60 ml-2">Description du Poste</label>
+                            <label className="text-[10px] font-bold uppercase tracking-widest text-muted/60 ml-2">Description du Poste</label>
                             <textarea 
                                 required
                                 value={formData.description}
@@ -209,7 +209,7 @@ export default function NewJobPage() {
                     </div>
 
                     {/* Requirements / Skills */}
-                    <div className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5 space-y-8">
+                    <div className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5 space-y-8">
                         <div>
                             <h2 className="text-xl font-black mb-1">Compétences Requises</h2>
                             <p className="text-xs text-muted font-bold">L'IA utilisera ces critères pour matcher les candidats.</p>
@@ -223,7 +223,7 @@ export default function NewJobPage() {
                                     </div>
                                     <div className="flex items-center gap-4">
                                         <div className="flex items-center gap-2">
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted/50">Niveau:</span>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted/50">Niveau:</span>
                                             <select 
                                                 value={req.required_level}
                                                 onChange={e => updateRequirement(req.skill_id, 'required_level', parseInt(e.target.value))}
@@ -242,7 +242,7 @@ export default function NewJobPage() {
                                                 onChange={e => updateRequirement(req.skill_id, 'is_mandatory', e.target.checked)}
                                                 className="w-4 h-4 rounded border-secondary/10 text-primary focus:ring-primary/20"
                                             />
-                                            <span className="text-[10px] font-black uppercase tracking-widest text-muted/50">Obligatoire</span>
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-muted/50">Obligatoire</span>
                                         </label>
                                         <button 
                                             type="button"
@@ -279,14 +279,14 @@ export default function NewJobPage() {
                         <button 
                             type="button"
                             onClick={() => router.back()}
-                            className="px-8 py-4 rounded-2xl font-black uppercase tracking-widest text-xs text-muted hover:bg-secondary/10 transition-all"
+                            className="px-8 py-4 rounded-2xl font-bold uppercase tracking-widest text-xs text-muted hover:bg-secondary/10 transition-all"
                         >
                             Annuler
                         </button>
                         <button 
                             type="submit"
                             disabled={loading}
-                            className="px-12 py-4 bg-primary text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
+                            className="px-12 py-4 bg-primary text-white rounded-2xl font-bold uppercase tracking-widest text-xs shadow-xl shadow-primary/20 hover:scale-105 transition-all disabled:opacity-50"
                         >
                             {loading ? "Création..." : "Publier l'Offre"}
                         </button>

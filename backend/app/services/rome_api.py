@@ -29,6 +29,19 @@ logger = logging.getLogger(__name__)
 # Cache mémoire du token (évite de re-authentifier à chaque appel)
 _token_cache = {"value": None, "expires_at": 0.0}
 
+# Limiteur de débit : l'API ROME 4.0 est plafonnée à 1 appel/seconde.
+# On garantit un intervalle minimal entre deux requêtes data pour éviter les 429.
+_MIN_INTERVAL = 1.1
+_last_call = {"at": 0.0}
+
+
+def _throttle() -> None:
+    now = time.time()
+    wait = _MIN_INTERVAL - (now - _last_call["at"])
+    if wait > 0:
+        time.sleep(wait)
+    _last_call["at"] = time.time()
+
 
 def _is_configured() -> bool:
     return bool(settings.ROME_CLIENT_ID and settings.ROME_CLIENT_SECRET)
@@ -82,8 +95,11 @@ def search_rome_code(skill_name: str) -> Optional[str]:
         return None
 
     try:
+        _throttle()  # respecte la limite 1 appel/seconde de l'API ROME
+        # Recherche libre par métier : endpoint `/metier/requete?q=...`
+        # (le simple GET /metiers ne supporte pas ?q= et renvoie 404).
         resp = requests.get(
-            settings.ROME_API_BASE,
+            settings.ROME_API_BASE.rstrip("/") + "/metier/requete",
             params={"q": skill_name},
             headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
             timeout=10,
@@ -91,9 +107,10 @@ def search_rome_code(skill_name: str) -> Optional[str]:
         resp.raise_for_status()
         results = resp.json()
 
-        # L'API peut renvoyer une liste de métiers ; on prend le code du 1er.
-        if isinstance(results, list) and results:
-            first = results[0]
+        # Réponse : {"totalResultats": N, "resultats": [{"code": "M1434", ...}, ...]}
+        items = results.get("resultats") if isinstance(results, dict) else results
+        if isinstance(items, list) and items:
+            first = items[0]
             code = (
                 first.get("code")
                 or first.get("metier", {}).get("code")
@@ -101,10 +118,51 @@ def search_rome_code(skill_name: str) -> Optional[str]:
             )
             if code:
                 return str(code).strip().upper()
-        elif isinstance(results, dict):
-            code = results.get("code")
-            if code:
-                return str(code).strip().upper()
     except Exception as e:
         logger.warning(f"[ROME] recherche échouée pour '{skill_name}': {e}")
+    return None
+
+
+def fetch_metier_competences(rome_code: str) -> Optional[dict]:
+    """
+    Récupère les compétences mobilisées par un métier ROME (détail métier).
+    Renvoie {'libelle', 'principales': [...], 'emergentes': [...], 'toutes': [...]}
+    (libellés ROME), ou None si non configuré / indisponible / code inconnu.
+
+    Sert à l'auto-alimentation du référentiel de compétences cibles (GPEC prévisionnelle).
+    """
+    if not rome_code or not _is_configured():
+        return None
+    token = get_access_token()
+    if not token:
+        return None
+    try:
+        _throttle()  # 1 appel/seconde
+        resp = requests.get(
+            settings.ROME_API_BASE.rstrip("/") + f"/metier/{rome_code.strip().upper()}",
+            headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            timeout=10,
+        )
+        if resp.status_code == 404:
+            logger.warning(f"[ROME] métier introuvable : {rome_code}")
+            return None
+        resp.raise_for_status()
+        d = resp.json()
+
+        def _names(key: str) -> list:
+            out = []
+            for c in (d.get(key) or []):
+                lib = c.get("libelle")
+                if lib:
+                    out.append(lib.strip())
+            return out
+
+        return {
+            "libelle": d.get("libelle"),
+            "principales": _names("competencesMobiliseesPrincipales"),
+            "emergentes": _names("competencesMobiliseesEmergentes"),
+            "toutes": _names("competencesMobilisees"),
+        }
+    except Exception as e:
+        logger.warning(f"[ROME] détail métier échoué pour '{rome_code}': {e}")
     return None

@@ -143,11 +143,11 @@ export default function CandidateDetailPage() {
 
 
                 {/* Header Profile Section */}
-                <header className="glass-panel p-10 md:p-16 rounded-[4rem] shadow-2xl mb-12 relative overflow-hidden">
+                <header className="glass-panel p-10 md:p-16 rounded-panel-2xl shadow-2xl mb-12 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 blur-3xl -translate-y-1/2 translate-x-1/2" />
                     
                     <div className="flex flex-col md:flex-row gap-10 items-center md:items-start relative z-10">
-                        <div className="w-32 h-32 bg-primary/10 rounded-[2.5rem] flex items-center justify-center text-primary font-black text-4xl shadow-xl shadow-primary/5 border border-primary/20">
+                        <div className="w-32 h-32 bg-primary/10 rounded-panel flex items-center justify-center text-primary font-black text-4xl shadow-xl shadow-primary/5 border border-primary/20">
                             {candidate.first_name[0]}{candidate.last_name[0]}
                         </div>
                         
@@ -180,7 +180,7 @@ export default function CandidateDetailPage() {
                                         href={`http://127.0.0.1:8000/${candidate.cv_url}`} 
                                         target="_blank" 
                                         rel="noopener noreferrer"
-                                        className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-105 transition-all"
+                                        className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-105 transition-all"
                                     >
                                         <FileText className="w-4 h-4" /> Consulter le CV Original
                                     </a>
@@ -238,7 +238,7 @@ export default function CandidateDetailPage() {
                         ].map((item, idx) => (
                             <div key={idx} className="glass-panel p-6 rounded-3xl border border-secondary/10">
                                 <div className="flex justify-between items-end mb-2">
-                                    <span className="text-xs font-black uppercase tracking-widest text-muted">{item.label}</span>
+                                    <span className="text-xs font-bold uppercase tracking-widest text-muted">{item.label}</span>
                                     <span className="text-xl font-black">{Math.round(item.score)}%</span>
                                 </div>
                                 <div className="w-full h-2 bg-secondary/10 rounded-full overflow-hidden">
@@ -343,7 +343,7 @@ export default function CandidateDetailPage() {
                             <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
                                 <Briefcase className="w-6 h-6 text-primary" /> Expériences & Parcours
                             </h2>
-                            <div className="bg-secondary/5 border border-secondary/10 rounded-[2.5rem] p-8 whitespace-pre-wrap font-medium leading-relaxed">
+                            <div className="bg-secondary/5 border border-secondary/10 rounded-panel p-8 whitespace-pre-wrap font-medium leading-relaxed">
                                 {candidate.experience_detail || "Aucune expérience détaillée renseignée."}
                             </div>
                         </section>
@@ -353,7 +353,7 @@ export default function CandidateDetailPage() {
                             <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
                                 <GraduationCap className="w-6 h-6 text-blue-500" /> Éducation & Formations
                             </h2>
-                            <div className="bg-blue-500/5 border border-blue-500/10 rounded-[2.5rem] p-8 whitespace-pre-wrap font-medium leading-relaxed">
+                            <div className="bg-blue-500/5 border border-blue-500/10 rounded-panel p-8 whitespace-pre-wrap font-medium leading-relaxed">
                                 {candidate.formations || "Aucune formation renseignée."}
                             </div>
                         </section>
@@ -364,7 +364,7 @@ export default function CandidateDetailPage() {
                                 <h2 className="text-2xl font-black mb-6 flex items-center gap-3 text-muted">
                                     <FileText className="w-6 h-6" /> Contenu du CV
                                 </h2>
-                                <div className="bg-black/5 dark:bg-white/5 border border-secondary/10 rounded-[2.5rem] p-8 font-mono text-xs text-muted/80 leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-hide">
+                                <div className="bg-black/5 dark:bg-white/5 border border-secondary/10 rounded-panel p-8 font-mono text-xs text-muted/80 leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto scrollbar-hide">
                                     {candidate.cv_text}
                                 </div>
                             </section>
@@ -395,7 +395,7 @@ export default function CandidateDetailPage() {
                                 {candidate.skills.length === 0 && (
                                     <div className="text-center py-10 opacity-20">
                                         <TrendingUp className="w-12 h-12 mx-auto mb-4" />
-                                        <p className="font-black uppercase text-xs">Aucune compétence listée</p>
+                                        <p className="font-bold uppercase text-xs">Aucune compétence listée</p>
                                     </div>
                                 )}
                             </div>
@@ -406,7 +406,7 @@ export default function CandidateDetailPage() {
                             <h2 className="text-2xl font-black mb-6 flex items-center gap-3 text-amber-500">
                                 <Award className="w-6 h-6" /> Certifications
                             </h2>
-                            <div className="bg-amber-500/5 border border-amber-500/10 rounded-[2.5rem] p-8 font-bold text-sm whitespace-pre-wrap">
+                            <div className="bg-amber-500/5 border border-amber-500/10 rounded-panel p-8 font-bold text-sm whitespace-pre-wrap">
                                 {candidate.certifications || "Aucune certification."}
                             </div>
                         </section>

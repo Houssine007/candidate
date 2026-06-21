@@ -95,7 +95,19 @@ export default function CreateJobPage() {
                 const res = await fetch(`${API_BASE}/api/catalog/jobs/suggest?q=${encodeURIComponent(title)}&limit=5`, {
                     headers: { Authorization: `Bearer ${token}` }
                 })
-                if (res.ok) setRomeResults(await res.json())
+                if (res.ok) {
+                    const data = await res.json()
+                    // Le backend retourne "skills", on mappe vers "suggested_skills"
+                    setRomeResults(data.map((s: any) => ({
+                        ...s,
+                        suggested_skills: (s.suggested_skills || s.skills || []).map((sk: any) => ({
+                            skill_id: sk.skill_id,
+                            skill_name: sk.skill_name,
+                            min_level: sk.min_level ?? sk.level ?? 2,
+                            is_mandatory: sk.is_mandatory ?? sk.mandatory ?? true,
+                        }))
+                    })))
+                }
             } catch { }
             setLoadingRome(false)
         }, 600)
@@ -119,7 +131,20 @@ export default function CreateJobPage() {
             const res = await fetch(`${API_BASE}/api/catalog/jobs/suggest-ai?q=${encodeURIComponent(title)}`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
-            if (res.ok) setAISuggestion(await res.json())
+            if (res.ok) {
+                const data = await res.json()
+                // Le backend retourne "required_skills", on mappe vers "suggested_skills"
+                const rawSkills = data.suggested_skills || data.required_skills || []
+                setAISuggestion({
+                    ...data,
+                    suggested_skills: rawSkills.map((sk: any) => ({
+                        skill_id: sk.skill_id,
+                        skill_name: sk.skill_name,
+                        min_level: sk.min_level ?? sk.level ?? 2,
+                        is_mandatory: sk.is_mandatory ?? sk.mandatory ?? true,
+                    }))
+                })
+            }
         } catch { }
         setLoadingAI(false)
     }
@@ -192,7 +217,7 @@ export default function CreateJobPage() {
                         <ArrowLeft className="w-4 h-4" />
                     </button>
                     <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-muted">Nouvelle offre</p>
+                        <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Nouvelle offre</p>
                         <p className="font-black text-sm truncate max-w-[260px]">{title || "Sans titre"}</p>
                     </div>
                 </div>
@@ -418,7 +443,7 @@ export default function CreateJobPage() {
                                             </div>
                                         ))}
                                         <div className="flex items-center gap-2 pt-3 flex-wrap">
-                                            <span className="text-[9px] font-black uppercase tracking-widest text-muted/40">Niveaux :</span>
+                                            <span className="text-[9px] font-bold uppercase tracking-widest text-muted/40">Niveaux :</span>
                                             {SKILL_LEVELS.map(l => <span key={l.value} className={`text-[9px] font-black px-2 py-1 rounded-lg border ${l.color}`}>{l.short} = {l.label}</span>)}
                                         </div>
                                     </div>
@@ -457,11 +482,11 @@ export default function CreateJobPage() {
                         {/* ── STEP 3 : Preview ──────────────────────────── */}
                         {step === 3 && (
                             <Section num="07" title="Aperçu" sub="Vérifiez avant de publier">
-                                <div className="glass-panel rounded-[2rem] p-8 space-y-6">
+                                <div className="glass-panel rounded-panel-sm p-8 space-y-6">
                                     <div>
                                         <div className="flex items-center gap-2 mb-3">
-                                            <span className="text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary px-2.5 py-1 rounded-lg">{contractType}</span>
-                                            {remoteOk && <span className="text-[10px] font-black uppercase tracking-widest bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-lg">Remote OK</span>}
+                                            <span className="text-[10px] font-bold uppercase tracking-widest bg-primary/10 text-primary px-2.5 py-1 rounded-lg">{contractType}</span>
+                                            {remoteOk && <span className="text-[10px] font-bold uppercase tracking-widest bg-blue-500/10 text-blue-400 px-2.5 py-1 rounded-lg">Remote OK</span>}
                                         </div>
                                         <h2 className="text-2xl font-black">{title || "—"}</h2>
                                         <div className="flex items-center gap-4 mt-2 text-sm text-muted flex-wrap">
@@ -473,7 +498,7 @@ export default function CreateJobPage() {
                                     {description && <p className="text-sm leading-relaxed text-muted/80 border-t border-secondary/10 pt-5">{description}</p>}
                                     {requirements.length > 0 && (
                                         <div className="border-t border-secondary/10 pt-5">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted mb-3">Compétences requises</p>
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted mb-3">Compétences requises</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {requirements.map(r => (
                                                     <span key={r.skill_id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-sm font-semibold ${r.is_mandatory ? "bg-primary/10 border-primary/20 text-primary" : "bg-secondary/5 border-secondary/10 text-muted"}`}>
@@ -486,11 +511,11 @@ export default function CreateJobPage() {
                                     )}
                                     <div className="border-t border-secondary/10 pt-5 grid grid-cols-2 gap-3">
                                         <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted/50 mb-1">Expérience min.</p>
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted/50 mb-1">Expérience min.</p>
                                             <p className="font-bold">{EXP_OPTIONS.find(o => o.value === minExp)?.label}</p>
                                         </div>
                                         <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
-                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted/50 mb-1">Formation min.</p>
+                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted/50 mb-1">Formation min.</p>
                                             <p className="font-bold">{EDU_LEVELS.find(l => l.value === minEdu)?.label}</p>
                                         </div>
                                     </div>
@@ -522,7 +547,7 @@ export default function CreateJobPage() {
 
                 {/* Right summary sidebar */}
                 <aside className="hidden xl:flex w-72 border-l border-secondary/10 flex-col p-6 overflow-y-auto">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-muted mb-6">Résumé</p>
+                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted mb-6">Résumé</p>
                     <div className="space-y-3 flex-1 text-sm">
                         <SRow label="Titre"          value={title || "—"} />
                         <SRow label="Contrat"         value={contractType} />
@@ -531,7 +556,7 @@ export default function CreateJobPage() {
                         {(salaryMin || salaryMax) && <SRow label="Salaire" value={`${salaryMin || "?"} – ${salaryMax || "?"} €`} />}
                         {requirements.length > 0 && (
                             <div className="pt-3 border-t border-secondary/10">
-                                <p className="text-[9px] font-black uppercase tracking-widest text-muted mb-2">{requirements.length} compétence{requirements.length > 1 ? "s" : ""}</p>
+                                <p className="text-[9px] font-bold uppercase tracking-widest text-muted mb-2">{requirements.length} compétence{requirements.length > 1 ? "s" : ""}</p>
                                 <div className="flex flex-wrap gap-1.5">
                                     {requirements.slice(0, 8).map(r => <span key={r.skill_id} className={`text-[10px] font-bold px-2 py-1 rounded-lg ${r.is_mandatory ? "bg-primary/10 text-primary" : "bg-secondary/10 text-muted"}`}>{r.skill_name}</span>)}
                                     {requirements.length > 8 && <span className="text-[10px] text-muted/50">+{requirements.length - 8}</span>}
@@ -548,7 +573,7 @@ export default function CreateJobPage() {
                         return (
                             <div className="mt-6 pt-6 border-t border-secondary/10">
                                 <div className="flex justify-between mb-2">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted">Complétude</p>
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Complétude</p>
                                     <span className={`text-xs font-black ${pct >= 75 ? "text-primary" : pct >= 50 ? "text-amber-500" : "text-red-400"}`}>{pct}%</span>
                                 </div>
                                 <div className="h-1.5 bg-secondary/20 rounded-full overflow-hidden">
@@ -578,7 +603,7 @@ export default function CreateJobPage() {
                             {/* AI Section */}
                             <div>
                                 <div className="flex items-center justify-between mb-3">
-                                    <p className="text-xs font-black uppercase tracking-widest text-purple-400 flex items-center gap-1.5"><Brain className="w-3.5 h-3.5" />Génération Groq IA</p>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-purple-400 flex items-center gap-1.5"><Brain className="w-3.5 h-3.5" />Génération Groq IA</p>
                                     <button onClick={fetchAISuggestion} disabled={loadingAI}
                                         className="flex items-center gap-1.5 text-xs font-black text-purple-400 hover:text-purple-300 transition-colors">
                                         {loadingAI ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
@@ -598,7 +623,7 @@ export default function CreateJobPage() {
                                         <div className="p-4 bg-purple-500/5 flex items-center justify-between">
                                             <div>
                                                 <p className="font-black text-sm text-purple-300">Suggestion Groq IA</p>
-                                                <p className="text-[10px] text-muted mt-0.5">{aiSuggestion.suggested_skills.length} compétences · source: {aiSuggestion.source}</p>
+                                                <p className="text-[10px] text-muted mt-0.5">{(aiSuggestion.suggested_skills || []).length} compétences · source: {aiSuggestion.source}</p>
                                             </div>
                                             <button onClick={applyAI}
                                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-purple-500 text-white hover:bg-purple-400 transition-all">
@@ -608,7 +633,7 @@ export default function CreateJobPage() {
                                         {aiSuggestion.description && (
                                             <div className="px-4 pt-3 pb-3 border-t border-purple-500/10">
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <p className="text-[9px] font-black uppercase tracking-widest text-muted">Description générée</p>
+                                                    <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Description générée</p>
                                                     <button onClick={() => copyDesc(aiSuggestion.description, "ai")} className="flex items-center gap-1 text-[10px] font-black text-muted/60 hover:text-purple-400 transition-colors">
                                                         {copiedDesc === "ai" ? <><CheckCheck className="w-3 h-3 text-purple-400" />Copié</> : <><Copy className="w-3 h-3" />Copier</>}
                                                     </button>
@@ -616,9 +641,9 @@ export default function CreateJobPage() {
                                                 <p className="text-xs text-muted/70 leading-relaxed line-clamp-4">{aiSuggestion.description}</p>
                                             </div>
                                         )}
-                                        {aiSuggestion.suggested_skills.length > 0 && (
+                                        {aiSuggestion.suggested_skills && aiSuggestion.suggested_skills.length > 0 && (
                                             <div className="px-4 pt-3 pb-4 border-t border-purple-500/10">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-muted mb-2">{aiSuggestion.suggested_skills.length} compétences</p>
+                                                <p className="text-[9px] font-bold uppercase tracking-widest text-muted mb-2">{aiSuggestion.suggested_skills.length} compétences</p>
                                                 <div className="flex flex-wrap gap-1.5">
                                                     {aiSuggestion.suggested_skills.map(sk => {
                                                         const already = !!requirements.find(r => r.skill_id === sk.skill_id)
@@ -641,7 +666,7 @@ export default function CreateJobPage() {
                             {/* ROME Section */}
                             {romeResults.length > 0 && (
                                 <div>
-                                    <p className="text-xs font-black uppercase tracking-widest text-primary mb-3 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />Fiches ROME ({romeResults.length})</p>
+                                    <p className="text-xs font-bold uppercase tracking-widest text-primary mb-3 flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />Fiches ROME ({romeResults.length})</p>
                                     <div className="space-y-3">
                                         {romeResults.map(s => (
                                             <div key={s.id} className="border border-secondary/15 rounded-2xl overflow-hidden hover:border-secondary/30 transition-all">
@@ -658,7 +683,7 @@ export default function CreateJobPage() {
                                                 {s.description && (
                                                     <div className="px-4 pt-2 pb-3 border-t border-secondary/10">
                                                         <div className="flex justify-between mb-1">
-                                                            <p className="text-[9px] font-black uppercase tracking-widest text-muted">Description</p>
+                                                            <p className="text-[9px] font-bold uppercase tracking-widest text-muted">Description</p>
                                                             <button onClick={() => copyDesc(s.description, s.id)} className="flex items-center gap-1 text-[10px] font-black text-muted/60 hover:text-primary transition-colors">
                                                                 {copiedDesc === s.id ? <><CheckCheck className="w-3 h-3 text-primary" />Copié</> : <><Copy className="w-3 h-3" />Copier</>}
                                                             </button>
@@ -666,9 +691,9 @@ export default function CreateJobPage() {
                                                         <p className="text-xs text-muted/70 line-clamp-2">{s.description}</p>
                                                     </div>
                                                 )}
-                                                {s.suggested_skills.length > 0 && (
+                                                {s.suggested_skills && s.suggested_skills.length > 0 && (
                                                     <div className="px-4 pt-2 pb-3 border-t border-secondary/10">
-                                                        <p className="text-[9px] font-black uppercase tracking-widest text-muted mb-2">{s.suggested_skills.length} compétences</p>
+                                                        <p className="text-[9px] font-bold uppercase tracking-widest text-muted mb-2">{(s.suggested_skills || []).length} compétences</p>
                                                         <div className="flex flex-wrap gap-1.5">
                                                             {s.suggested_skills.map(sk => {
                                                                 const already = !!requirements.find(r => r.skill_id === sk.skill_id)
@@ -700,7 +725,7 @@ export default function CreateJobPage() {
 function Section({ num, title, sub, children }: { num: string; title: string; sub?: string; children: React.ReactNode }) {
     return (
         <section>
-            <div className="mb-5"><p className="text-[9px] font-black uppercase tracking-[0.25em] text-primary mb-0.5">{num}</p><h2 className="text-lg font-black tracking-tight">{title}</h2>{sub && <p className="text-xs text-muted mt-0.5">{sub}</p>}</div>
+            <div className="mb-5"><p className="text-[9px] font-bold uppercase tracking-[0.25em] text-primary mb-0.5">{num}</p><h2 className="text-lg font-black tracking-tight">{title}</h2>{sub && <p className="text-xs text-muted mt-0.5">{sub}</p>}</div>
             {children}
         </section>
     )
@@ -711,5 +736,5 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 function SRow({ label, value }: { label: string; value: string }) {
-    return <div className="mb-3"><p className="text-[9px] font-black uppercase tracking-widest text-muted/40">{label}</p><p className="text-xs font-semibold text-foreground/70 mt-0.5 truncate">{value}</p></div>
+    return <div className="mb-3"><p className="text-[9px] font-bold uppercase tracking-widest text-muted/40">{label}</p><p className="text-xs font-semibold text-foreground/70 mt-0.5 truncate">{value}</p></div>
 }

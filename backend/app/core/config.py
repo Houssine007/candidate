@@ -30,7 +30,9 @@ class Settings(BaseSettings):
     # Laisser vide pour désactiver l'appel API (fallback statique uniquement).
     ROME_CLIENT_ID: Optional[str] = None
     ROME_CLIENT_SECRET: Optional[str] = None
-    ROME_SCOPE: str = "api_rome-metiersv1"
+    # ⚠️ L'API ROME 4.0 Métiers exige le scope additionnel `nomenclatureRome`.
+    # Sans lui, le token est émis mais les endpoints data renvoient 403 insufficient_scope.
+    ROME_SCOPE: str = "api_rome-metiersv1 nomenclatureRome"
     ROME_TOKEN_URL: str = "https://entreprise.francetravail.fr/connexion/oauth2/access_token?realm=%2Fpartenaire"
     ROME_API_BASE: str = "https://api.francetravail.io/partenaire/rome-metiers/v1/metiers"
 

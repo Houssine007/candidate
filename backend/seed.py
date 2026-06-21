@@ -261,6 +261,20 @@ def seed():
                 for sname, level, sxp in cskills:
                     db.add(CandidateSkill(candidate_id=c.id, skill_id=skill_objs[sname].id, level=level, years_experience=sxp))
 
+        # 9. Normaliser les codes ROME des compétences (rend l'analyse de profil
+        #    BF-17 opérationnelle dès le seed, sans étape manuelle supplémentaire)
+        from normalize_skills import resolve_rome
+        rome_count = 0
+        for s in db.query(Skill).all():
+            if not s.rome_code:
+                rome, category = resolve_rome(s, use_api=False)
+                if rome:
+                    s.rome_code = rome
+                    s.category = category
+                    rome_count += 1
+        if rome_count:
+            print(f"🧭 {rome_count} compétences enrichies avec un code ROME (analyse de profil)")
+
         db.commit()
         print("✨ SEEDING TERMINE AVEC SUCCES !")
         print("🔑 Identifiants Recruteur : recruiter@techcorp.com / password123")

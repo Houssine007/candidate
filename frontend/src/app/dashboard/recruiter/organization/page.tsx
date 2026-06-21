@@ -14,6 +14,7 @@ import {
     updateEmployee
 } from "@/lib/api"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { RecruiterSidebar } from "@/components/recruiter-sidebar"
 import {
     Users,
     Briefcase,
@@ -103,20 +104,36 @@ export default function OrganizationPage() {
 
     const handleAssignMember = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!token || !selectedEmployeeId || !selectedUnitForMember) return
+        // On exige uniquement un employé : l'unité ET le rôle sont optionnels.
+        if (!token || !selectedEmployeeId) return
         try {
-            await updateEmployee(Number(selectedEmployeeId), {
-                org_unit_id: selectedUnitForMember,
-                internal_role_id: selectedRoleId ? Number(selectedRoleId) : null
-            }, token)
+            const payload: { internal_role_id: number | null; org_unit_id?: number } = {
+                internal_role_id: selectedRoleId ? Number(selectedRoleId) : null,
+            }
+            if (selectedUnitForMember) payload.org_unit_id = selectedUnitForMember
+            await updateEmployee(Number(selectedEmployeeId), payload, token)
             setShowAssignModal(false)
             setSelectedEmployeeId("")
             setSelectedRoleId("")
+            setSelectedUnitForMember(null)
             loadData()
         } catch (err) {
             alert("Erreur lors de l'assignation : Vérifiez vos droits d'administration.")
         }
     }
+
+    // Liste à plat des unités (pour le sélecteur d'unité de la modale)
+    const flatUnits = React.useMemo(() => {
+        const out: { id: number; name: string }[] = []
+        const walk = (nodes: OrgUnitTree[], depth = 0) => {
+            nodes.forEach((n) => {
+                out.push({ id: n.id, name: `${"— ".repeat(depth)}${n.name}` })
+                if (n.children?.length) walk(n.children, depth + 1)
+            })
+        }
+        walk(tree)
+        return out
+    }, [tree])
 
     if (loading) {
         return (
@@ -133,31 +150,7 @@ export default function OrganizationPage() {
     return (
         <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
             {/* Sidebar */}
-            <aside className="fixed left-0 top-0 h-full w-64 bg-secondary/5 border-r border-secondary/10 hidden lg:flex flex-col p-6 z-50">
-                <div className="flex items-center gap-3 mb-12">
-                    <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center font-black text-primary text-sm">R</div>
-                    <span className="font-extrabold tracking-tighter text-lg">RECRUITPRO</span>
-                </div>
-
-                <nav className="space-y-2 flex-1">
-                    <button onClick={() => router.push("/dashboard/recruiter")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-                        <TrendingUp className="w-4 h-4" /> Overview
-                    </button>
-                    <button onClick={() => router.push("/dashboard/recruiter/employees")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-                        <Users className="w-4 h-4" /> Employés
-                    </button>
-                    <button onClick={() => router.push("/dashboard/recruiter/organization")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm bg-primary/10 text-primary border border-primary/20">
-                        <Building2 className="w-4 h-4" /> Organisation
-                    </button>
-                    <button onClick={() => router.push("/")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-                        <Briefcase className="w-4 h-4" /> Voir le Site
-                    </button>
-                </nav>
-
-                <button onClick={() => { logout(); router.push("/") }} className="flex items-center gap-3 p-3 text-muted/60 hover:text-foreground hover:bg-secondary/10 rounded-xl transition-all font-bold text-xs uppercase tracking-widest mt-auto">
-                    <LogOut className="w-4 h-4" /> Déconnexion
-                </button>
-            </aside>
+            <RecruiterSidebar active="organization" />
 
             {/* Main Content */}
             <main className="lg:ml-64 p-6 md:p-12">
@@ -187,7 +180,7 @@ export default function OrganizationPage() {
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
                     {/* Organigramme */}
-                    <div className="xl:col-span-2 glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5">
+                    <div className="xl:col-span-2 glass-panel p-8 rounded-panel shadow-xl shadow-black/5">
                         <h2 className="text-xl font-black mb-8 flex items-center gap-3">
                             <Building2 className="w-5 h-5 text-primary" /> Architecture Entreprise
                         </h2>
@@ -214,7 +207,7 @@ export default function OrganizationPage() {
                     {/* Panneau Latéral : People Management */}
                     <div className="space-y-8">
                         {/* New People / Inbox */}
-                        <div className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5 flex flex-col max-h-[500px]">
+                        <div className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5 flex flex-col max-h-[500px]">
                             <h2 className="text-xl font-black mb-4 flex items-center gap-3">
                                 <Users className="w-5 h-5 text-primary" /> À Assigner
                             </h2>
@@ -241,7 +234,7 @@ export default function OrganizationPage() {
                                             </div>
                                         </div>
                                         <button
-                                            onClick={() => { setSelectedEmployeeId(emp.id); setShowAssignModal(true) }}
+                                            onClick={() => { setSelectedEmployeeId(emp.id); setSelectedUnitForMember(null); setSelectedRoleId(""); setShowAssignModal(true) }}
                                             className="p-2 rounded-lg bg-primary text-primary-foreground hover:scale-110 transition-all"
                                             title="Assigner à une équipe"
                                         >
@@ -252,21 +245,21 @@ export default function OrganizationPage() {
                                 {unassignedEmployees.length === 0 && (
                                     <div className="text-center py-10 opacity-30">
                                         <Users className="w-8 h-8 mx-auto mb-2" />
-                                        <p className="text-[10px] font-black uppercase">Aucun profile en attente</p>
+                                        <p className="text-[10px] font-bold uppercase">Aucun profile en attente</p>
                                     </div>
                                 )}
                             </div>
                         </div>
 
                         {/* Summary of Roles */}
-                        <div className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5 border-primary/10">
+                        <div className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5 border-primary/10">
                             <h2 className="text-xl font-black mb-6 flex items-center gap-3">
                                 <Shield className="w-5 h-5 text-primary" /> Rôles de Sécurité
                             </h2>
                             <div className="grid grid-cols-2 gap-3">
                                 {roles.map(role => (
                                     <div key={role.id} className="p-3 rounded-xl bg-secondary/5 border border-secondary/10 flex flex-col justify-between">
-                                        <p className="text-[10px] font-black uppercase tracking-tighter truncate">{role.name}</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-tighter truncate">{role.name}</p>
                                         <div className="flex items-center justify-between mt-2">
                                             <span className="text-[8px] opacity-50">{role.permissions?.length || 0} perms</span>
                                             <Shield className="w-3 h-3 text-primary/40" />
@@ -282,11 +275,11 @@ export default function OrganizationPage() {
             {/* Modal Add Unit */}
             {showAddModal && (
                 <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-                    <div className="glass-panel p-8 rounded-[3rem] w-full max-w-md shadow-2xl border-primary/20">
+                    <div className="glass-panel p-8 rounded-panel-lg w-full max-w-md shadow-2xl border-primary/20">
                         <h2 className="text-2xl font-black mb-6">Nouvelle Unité</h2>
                         <form onSubmit={handleAddUnit} className="space-y-4">
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted mb-2 block">Nom</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2 block">Nom</label>
                                 <input
                                     value={newName}
                                     onChange={(e) => setNewName(e.target.value)}
@@ -296,7 +289,7 @@ export default function OrganizationPage() {
                                 />
                             </div>
                             <div className="flex gap-4 pt-4">
-                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 font-black uppercase text-xs text-muted">Annuler</button>
+                                <button type="button" onClick={() => setShowAddModal(false)} className="flex-1 py-3 font-bold uppercase text-xs text-muted">Annuler</button>
                                 <button type="submit" className="flex-1 btn-premium bg-primary text-primary-foreground py-3 text-xs">Créer</button>
                             </div>
                         </form>
@@ -307,11 +300,11 @@ export default function OrganizationPage() {
             {/* Modal Assign Member */}
             {showAssignModal && (
                 <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-                    <div className="glass-panel p-8 rounded-[3rem] w-full max-w-md shadow-2xl border-primary/20">
+                    <div className="glass-panel p-8 rounded-panel-lg w-full max-w-md shadow-2xl border-primary/20">
                         <h2 className="text-2xl font-black mb-6">Configuration RH</h2>
                         <form onSubmit={handleAssignMember} className="space-y-6">
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted mb-2 block">Collaborateur</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2 block">Collaborateur</label>
                                 <select
                                     value={selectedEmployeeId}
                                     onChange={(e) => setSelectedEmployeeId(e.target.value)}
@@ -326,7 +319,21 @@ export default function OrganizationPage() {
                             </div>
 
                             <div>
-                                <label className="text-[10px] font-black uppercase tracking-widest text-muted mb-2 block">Rôle de sécurité</label>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2 block">Unité (optionnel)</label>
+                                <select
+                                    value={selectedUnitForMember ?? ""}
+                                    onChange={(e) => setSelectedUnitForMember(e.target.value ? Number(e.target.value) : null)}
+                                    className="w-full bg-secondary/10 border border-secondary/20 rounded-xl px-4 py-3 outline-none focus:border-primary/50 transition-all font-bold"
+                                >
+                                    <option value="">Aucune unité</option>
+                                    {flatUnits.map((u) => (
+                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2 block">Rôle de sécurité</label>
                                 <select
                                     value={selectedRoleId}
                                     onChange={(e) => setSelectedRoleId(e.target.value)}
@@ -340,7 +347,7 @@ export default function OrganizationPage() {
                             </div>
 
                             <div className="flex gap-4 pt-4">
-                                <button type="button" onClick={() => setShowAssignModal(false)} className="flex-1 py-3 font-black uppercase text-xs text-muted">Annuler</button>
+                                <button type="button" onClick={() => setShowAssignModal(false)} className="flex-1 py-3 font-bold uppercase text-xs text-muted">Annuler</button>
                                 <button type="submit" className="flex-1 btn-premium bg-primary text-primary-foreground py-3 text-xs">Confirmer</button>
                             </div>
                         </form>
@@ -371,7 +378,7 @@ function OrgUnitRow({
     return (
         <div className="space-y-4">
             <div
-                className="group flex flex-col p-6 rounded-[2rem] bg-secondary/5 border border-secondary/10 hover:border-primary/30 transition-all"
+                className="group flex flex-col p-6 rounded-panel-sm bg-secondary/5 border border-secondary/10 hover:border-primary/30 transition-all"
                 style={{ marginLeft: `${level * 40}px` }}
             >
                 <div className="flex items-center justify-between mb-4">
@@ -389,9 +396,9 @@ function OrgUnitRow({
                             <div>
                                 <p className="font-black text-lg tracking-tight">{unit.name}</p>
                                 <div className="flex items-center gap-2">
-                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted/50">{unit.unit_type}</p>
+                                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted/50">{unit.unit_type}</p>
                                     <span className="w-1 h-1 rounded-full bg-muted/30" />
-                                    <p className="text-[10px] font-black uppercase text-primary/60">{unitMembers.length} membres</p>
+                                    <p className="text-[10px] font-bold uppercase text-primary/60">{unitMembers.length} membres</p>
                                 </div>
                             </div>
                         </div>

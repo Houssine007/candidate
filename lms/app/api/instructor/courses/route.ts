@@ -2,27 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Course from '@/models/Course';
 import Category from '@/models/Category';
-import jwt from 'jsonwebtoken';
+import { authorizeInstructor, isAdmin } from '@/lib/auth';
 
 // GET all courses for the instructor
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const courses = await Course.find({ instructorId: decoded.userId })
+    // Un ADMIN voit tous les cours ; un instructeur uniquement les siens.
+    const filter = isAdmin(user) ? {} : { instructorId: user.id };
+    const courses = await Course.find(filter)
       .populate('categoryId', 'name')
       .sort({ createdAt: -1 });
-    
+
     return NextResponse.json({ courses }, { status: 200 });
   } catch (error: any) {
     console.error('Error fetching courses:', error);
@@ -35,15 +31,9 @@ export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const body = await request.json();
     const { title, description, categoryId, price, thumbnail, status, skillId, skillLevel, companyId } = body;
@@ -52,8 +42,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Title, description, and category are required' }, { status: 400 });
     }
 
-    // Verify category belongs to instructor
-    const category = await Category.findOne({ _id: categoryId, instructorId: decoded.userId });
+    // La catégorie doit appartenir à l'instructeur (ou l'utilisateur est ADMIN).
+    const categoryFilter = isAdmin(user)
+      ? { _id: categoryId }
+      : { _id: categoryId, instructorId: user.id };
+    const category = await Category.findOne(categoryFilter);
     if (!category) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
@@ -62,8 +55,8 @@ export async function POST(request: NextRequest) {
       title,
       description,
       categoryId,
-      instructorId: authUser.id,
-      instructorName: authUser.full_name,
+      instructorId: user.id,
+      instructorName: user.full_name,
       price: price || 0,
       thumbnail,
       status: status || 'draft',
@@ -81,4 +74,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
-

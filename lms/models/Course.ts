@@ -4,7 +4,8 @@ export interface ICourse extends Document {
   title: string;
   description: string;
   categoryId: mongoose.Types.ObjectId;
-  instructorId: mongoose.Types.ObjectId;
+  instructorId: number;          // ID PostgreSQL de l'instructeur (plateforme RH)
+  instructorName?: string;       // dénormalisé pour l'affichage sans appel RH
   price?: number;
   thumbnail?: string;
   status: 'draft' | 'published';
@@ -35,9 +36,12 @@ const CourseSchema = new Schema<ICourse>(
       required: true,
     },
     instructorId: {
-      type: Schema.Types.ObjectId,
-      ref: 'User',
+      type: Number,
       required: true,
+      index: true,
+    },
+    instructorName: {
+      type: String,
     },
     price: {
       type: Number,

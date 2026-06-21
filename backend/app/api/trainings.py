@@ -57,6 +57,20 @@ class EnrollmentResponse(BaseModel):
         from_attributes = True
 
 
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _resolve_company_id(current_user: User, db: Session) -> Optional[int]:
+    """company_id de l'utilisateur, qu'il soit recruteur (tenant) OU employé."""
+    from ..models.recruiter import Recruiter
+    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
+    if recruiter:
+        return recruiter.company_id
+    employee = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    if employee:
+        return employee.company_id
+    return None
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/catalog", response_model=List[TrainingResponse])
@@ -67,17 +81,15 @@ async def get_trainings_catalog(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Lister le catalogue des formations disponibles"""
-    from ..models.recruiter import Recruiter
-
-    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
-    if not recruiter:
-        raise HTTPException(status_code=403, detail="Profil recruteur non trouvé")
+    """Lister le catalogue des formations disponibles (recruteur ou employé)"""
+    company_id = _resolve_company_id(current_user, db)
+    if not company_id:
+        raise HTTPException(status_code=404, detail="Entreprise de l'utilisateur introuvable")
 
     query = db.query(Training).options(
         joinedload(Training.skills_taught).joinedload(TrainingSkill.skill)
     ).filter(
-        Training.company_id == recruiter.company_id,
+        Training.company_id == company_id,
         Training.is_active == 1
     )
 
@@ -121,18 +133,16 @@ async def get_training(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Détails d'une formation"""
-    from ..models.recruiter import Recruiter
-
-    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
-    if not recruiter:
-        raise HTTPException(status_code=403, detail="Profil recruteur non trouvé")
+    """Détails d'une formation (recruteur ou employé de l'entreprise)"""
+    company_id = _resolve_company_id(current_user, db)
+    if not company_id:
+        raise HTTPException(status_code=404, detail="Entreprise de l'utilisateur introuvable")
 
     training = db.query(Training).options(
         joinedload(Training.skills_taught).joinedload(TrainingSkill.skill)
     ).filter(
         Training.id == training_id,
-        Training.company_id == recruiter.company_id
+        Training.company_id == company_id
     ).first()
 
     if not training:

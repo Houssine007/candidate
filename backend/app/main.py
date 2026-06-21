@@ -2,8 +2,19 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import os
+import sys
+
+# Windows : la console par défaut (cp1252) ne peut pas encoder les emojis utilisés
+# dans les print() de debug (✅ ❌ → …), ce qui provoque des UnicodeEncodeError et
+# des erreurs 500 (ex. acceptation d'un candidat). On force l'UTF-8 sur les flux.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 from .core.config import settings
-from .api import auth, candidates, jobs, skills, applications, companies, recruiters, users, organization, employees, roles, catalog, lms, internal_mobility, trainings
+from .api import auth, candidates, jobs, skills, applications, companies, recruiters, users, organization, employees, roles, catalog, lms, internal_mobility, trainings, gpec
 from . import models
 
 app = FastAPI(
@@ -13,9 +24,13 @@ app = FastAPI(
 )
 
 # Configuration CORS
+# En dev, Next.js peut basculer de port (3000 occupé -> 3001, 3002, ...).
+# Le regex autorise n'importe quel port localhost/127.0.0.1 pour éviter les
+# blocages CORS intempestifs, tout en gardant la liste explicite (IP LAN, prod).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://192.168.56.1:3000"],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -46,6 +61,7 @@ app.include_router(roles.router, prefix="/api/roles", tags=["Roles"])
 app.include_router(lms.router, prefix="/api/lms", tags=["LMS"])
 app.include_router(internal_mobility.router, tags=["Internal Mobility"])
 app.include_router(trainings.router, tags=["Trainings"])
+app.include_router(gpec.router, prefix="/api/gpec", tags=["GPEC"])
 
 
 @app.get("/")

@@ -292,6 +292,24 @@ export async function getMyProfile(token: string): Promise<CandidateProfile> {
   return apiFetch<CandidateProfile>("/api/candidates/me/", {}, token)
 }
 
+export interface ProfileDomainSuggestion {
+  label: string
+  fit_level: "fort" | "potentiel" | "à découvrir"
+  owned_skills: { name: string; level: number }[]
+  suggested_skills: string[]
+  owned_count: number
+  typical_count: number
+}
+
+export interface ProfileAnalysis {
+  domains: ProfileDomainSuggestion[]
+  has_rome_data: boolean
+}
+
+export async function getProfileAnalysis(token: string): Promise<ProfileAnalysis> {
+  return apiFetch<ProfileAnalysis>("/api/candidates/me/profile-analysis", {}, token)
+}
+
 export async function updateMyProfile(profile: Partial<CandidateProfile>, token: string): Promise<CandidateProfile> {
   return apiFetch<CandidateProfile>("/api/candidates/me/", { method: "PUT", body: JSON.stringify(profile) }, token)
 }
@@ -434,6 +452,8 @@ export interface LMSCourse {
   skillLevel?: number
   status: "draft" | "published"
   categoryId?: string
+  finalExam?: string
+  modules?: { _id: string; title: string; order: number }[]
 }
 
 export interface LMSEnrollment {
@@ -469,6 +489,161 @@ export async function setInstructor(
   )
 }
 
+// ─── GPEC (BF-18) ─────────────────────────────────────────────────────────────
+export interface GpecDomain {
+  label: string
+  employees: number
+  skill_entries: number
+  avg_level: number
+}
+export interface GpecCoverage {
+  skill_id: number
+  skill: string
+  domain: string
+  required_level: number
+  is_mandatory: boolean
+  employees_with: number
+  employees_at_level: number
+  avg_level: number
+  status: "critique" | "partiel" | "ok"
+  reason: string
+  jobs_impacted: number
+  teams_impacted: number
+  job_titles: string[]
+}
+export interface GpecOverview {
+  headcount: number
+  distinct_skills: number
+  open_positions: number
+  domains: GpecDomain[]
+  coverage: GpecCoverage[]
+  tension_count: number
+  covered_count: number
+  required_count: number
+  coverage_index: number
+  coverage_target: number
+}
+export async function getGpecOverview(token: string): Promise<GpecOverview> {
+  return apiFetch<GpecOverview>("/api/gpec/overview", {}, token)
+}
+
+export interface GpecGapEmployee {
+  user_id: number
+  name: string
+  job_title?: string | null
+  current_level: number
+}
+export interface GpecSkillGap {
+  skill_id: number
+  skill: string
+  required_level: number
+  employees: GpecGapEmployee[]
+}
+// Employés de l'entreprise sous le niveau requis pour une compétence (à former).
+export async function getGpecSkillGap(skillId: number, token: string): Promise<GpecSkillGap> {
+  return apiFetch<GpecSkillGap>(`/api/gpec/skill/${skillId}/gap`, {}, token)
+}
+// Cours LMS (publiés) qui valident une compétence RH donnée.
+export async function getCoursesForSkill(skillId: number, token: string): Promise<LMSCourse[]> {
+  const data = await lmsFetch<any>(`/api/courses?skillId=${skillId}&limit=50`, {}, token)
+  const list = Array.isArray(data) ? data : (data?.courses ?? [])
+  return list.filter((c: LMSCourse) => c.status === "published")
+}
+
+// ─── GPEC prévisionnelle (cibles d'effectif vs emplois-types) ────────────────
+export interface ForecastEmployee {
+  employee_id: number
+  name: string
+  job_title?: string | null
+  skill_score: number
+  potential_score: number | null
+}
+export interface ForecastEmergentSkill {
+  skill: string
+  required_level: number
+  holders_at_level: number
+}
+export interface ForecastRole {
+  target_id: number
+  role: string
+  rome_code?: string | null
+  org_unit_id?: number | null
+  horizon?: string | null
+  priority: number
+  target_headcount: number
+  qualified_count: number
+  potential_count: number
+  gap: number
+  coverage_pct: number
+  status: "critique" | "partiel" | "couvert"
+  qualified: ForecastEmployee[]
+  potentials: ForecastEmployee[]
+  emergent_skills: ForecastEmergentSkill[]
+}
+export interface ForecastOverview {
+  headcount: number
+  targets_count: number
+  total_target_headcount: number
+  total_qualified: number
+  total_gap: number
+  coverage_index: number
+  coverage_target: number
+  tension_count: number
+  roles: ForecastRole[]
+}
+export interface ForecastSynthesis {
+  synthesis: string
+  source: "groq" | "fallback"
+  coverage_index: number
+  tension_count: number
+}
+export async function getGpecForecast(token: string): Promise<ForecastOverview> {
+  return apiFetch<ForecastOverview>("/api/gpec/forecast", {}, token)
+}
+export async function getGpecForecastSynthesis(token: string): Promise<ForecastSynthesis> {
+  return apiFetch<ForecastSynthesis>("/api/gpec/forecast/synthesis", {}, token)
+}
+
+// Vivier interne d'une cible : qualifiés + potentiels (avec compétences à développer)
+export interface PoolDevelop { skill: string; required: number; actual: number; mandatory: boolean }
+export interface PoolPerson {
+  employee_id: number
+  name: string
+  job_title?: string | null
+  skill_score: number
+  potential_score: number | null
+  to_develop: PoolDevelop[]
+}
+export interface TargetPool {
+  target_id: number
+  role: string
+  rome_code?: string | null
+  horizon?: string | null
+  target_headcount: number
+  qualified: PoolPerson[]
+  potentials: PoolPerson[]
+}
+export async function getGpecTargetPool(targetId: number, token: string): Promise<TargetPool> {
+  return apiFetch<TargetPool>(`/api/gpec/targets/${targetId}/pool`, {}, token)
+}
+
+// Explication LLM de la mobilité d'un collaborateur vers une cible
+export interface MobilityAssessment {
+  employee_id: number
+  name: string
+  job_title?: string | null
+  role: string
+  qualified: boolean
+  potential_score: number | null
+  have: PoolDevelop[] | { skill: string; level: number }[]
+  to_develop: PoolDevelop[]
+  explanation: string
+  source: "groq" | "fallback"
+}
+export async function getGpecMobility(targetId: number, employeeId: number, token: string): Promise<MobilityAssessment> {
+  return apiFetch<MobilityAssessment>(`/api/gpec/targets/${targetId}/mobility/${employeeId}`, {}, token)
+}
+
 // ─── LMS ─────────────────────────────────────────────────────────────────────
 // Le LMS est un service séparé (port 3001). On l'appelle directement avec le
 // token JWT RH (SSO unifiée). Helper dédié car base URL ≠ API_BASE.
@@ -501,6 +676,13 @@ export async function getLMSCourses(token: string): Promise<LMSCourse[]> {
 
 export async function getEmployeeEnrollments(employeeId: number, token: string): Promise<LMSEnrollment[]> {
   const data = await lmsFetch<any>(`/api/enrollments?employeeId=${employeeId}`, {}, token)
+  return Array.isArray(data) ? data : (data?.enrollments ?? [])
+}
+
+// Inscriptions LMS de l'employé connecté (cours assignés via le LMS).
+// Lue par la page "Mes Formations" pour unifier les deux systèmes de formation.
+export async function getMyLmsEnrollments(token: string): Promise<LMSEnrollment[]> {
+  const data = await lmsFetch<any>(`/api/enrollments/me`, {}, token)
   return Array.isArray(data) ? data : (data?.enrollments ?? [])
 }
 

@@ -115,8 +115,10 @@ export default function OnboardingPage() {
   const [skillResults, setSkillResults] = useState<any[]>([]);
   const [newProject, setNewProject] = useState<Project>({ title: "", description: "", url: "", skills: [] });
   const [showProjectForm, setShowProjectForm] = useState(false);
-  const { token } = useAuthStore();
+  const { token, user } = useAuthStore();
   const router = useRouter();
+  // Retour vers le bon dashboard : un employé qui édite son profil revient à son espace.
+  const backHref = user?.role === "EMPLOYEE" ? "/dashboard/employee" : "/dashboard/candidate";
 
   // ── Load profile ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -220,7 +222,7 @@ export default function OnboardingPage() {
         setCurrentStep(nextStep);
         window.scrollTo({ top: 0, behavior: "smooth" });
       } else {
-        router.push("/dashboard/candidate");
+        router.push(backHref);
       }
     } catch (err) { console.error(err); }
     finally { setIsSaving(false); }
@@ -252,7 +254,7 @@ export default function OnboardingPage() {
             <div className={`hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-[10px] font-black ${scoreBg}`}>
               <span>{score}% — {scoreText}</span>
             </div>
-            <button onClick={() => router.push("/dashboard/candidate")} className="text-xs font-bold text-muted hover:text-foreground transition-colors">← Dashboard</button>
+            <button onClick={() => router.push(backHref)} className="text-xs font-bold text-muted hover:text-foreground transition-colors">← Dashboard</button>
             <ThemeToggle />
           </div>
         </div>
@@ -298,7 +300,7 @@ export default function OnboardingPage() {
         </div>
 
         {/* Card */}
-        <div className="glass-panel rounded-[2.5rem] overflow-hidden border-secondary/10">
+        <div className="glass-panel rounded-panel overflow-hidden border-secondary/10">
           {/* Card header */}
           <div className="p-8 border-b border-secondary/10 bg-secondary/5">
             <div className="flex items-center gap-3 mb-1">

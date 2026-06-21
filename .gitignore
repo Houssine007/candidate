@@ -53,3 +53,18 @@ Thumbs.db
 # Database
 *.db
 *.sqlite3
+
+# Word temp files
+~$*
+
+# Server logs
+_srv.err.log
+_srv.out.log
+
+# Agent / tool config
+.agents/
+.claude/
+.impeccable/
+
+# Misc
+skills-lock.json

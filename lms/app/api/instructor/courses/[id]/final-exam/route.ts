@@ -4,7 +4,7 @@ import Course from '@/models/Course';
 import Quiz from '@/models/Quiz';
 import Question from '@/models/Question';
 import Answer from '@/models/Answer';
-import jwt from 'jsonwebtoken';
+import { authorizeInstructor } from '@/lib/auth';
 
 // GET final exam for a course
 export async function GET(
@@ -14,18 +14,12 @@ export async function GET(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const resolvedParams = params instanceof Promise ? await params : params;
-    const course = await Course.findOne({ _id: resolvedParams.id, instructorId: decoded.userId });
+    const course = await Course.findOne({ _id: resolvedParams.id, instructorId: user.id });
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
@@ -56,18 +50,12 @@ export async function POST(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const resolvedParams = params instanceof Promise ? await params : params;
-    const course = await Course.findOne({ _id: resolvedParams.id, instructorId: decoded.userId });
+    const course = await Course.findOne({ _id: resolvedParams.id, instructorId: user.id });
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }
@@ -130,18 +118,12 @@ export async function DELETE(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     const resolvedParams = params instanceof Promise ? await params : params;
-    const course = await Course.findOne({ _id: resolvedParams.id, instructorId: decoded.userId });
+    const course = await Course.findOne({ _id: resolvedParams.id, instructorId: user.id });
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }

@@ -1,27 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Category from '@/models/Category';
-import jwt from 'jsonwebtoken';
+import { authorizeInstructor } from '@/lib/auth';
 
 // GET a single category
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
+    const { id } = params instanceof Promise ? await params : params;
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const category = await Category.findOne({ _id: params.id, instructorId: decoded.userId });
+    const category = await Category.findOne({ _id: id, instructorId: user.id });
     if (!category) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }
@@ -36,26 +31,21 @@ export async function GET(
 // PUT update a category
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
+    const { id } = params instanceof Promise ? await params : params;
 
     const body = await request.json();
     const { name, description } = body;
 
     const category = await Category.findOneAndUpdate(
-      { _id: params.id, instructorId: decoded.userId },
+      { _id: id, instructorId: user.id },
       { name, description },
       { new: true, runValidators: true }
     );
@@ -74,22 +64,17 @@ export async function PUT(
 // DELETE a category
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> | { id: string } }
 ) {
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
+    const { id } = params instanceof Promise ? await params : params;
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const category = await Category.findOneAndDelete({ _id: params.id, instructorId: decoded.userId });
+    const category = await Category.findOneAndDelete({ _id: id, instructorId: user.id });
     if (!category) {
       return NextResponse.json({ error: 'Category not found' }, { status: 404 });
     }

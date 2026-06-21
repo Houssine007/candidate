@@ -29,6 +29,11 @@ class ApplicationUpdate(BaseModel):
     status: Optional[ApplicationStatus] = None
     is_active: Optional[bool] = None
 
+class HireRequest(BaseModel):
+    # Titre de poste définitif saisi par le recruteur lors de l'intégration.
+    # Optionnel : à défaut, on retombe sur le titre de l'offre.
+    job_title: Optional[str] = None
+
 class ApplicationResponse(BaseModel):
     id: int
     candidate_id: int
@@ -309,24 +314,6 @@ async def update_application_status(
                 import traceback; traceback.print_exc()
     db.refresh(db_app)
 
-    # On recharge AVANT le refresh pour garder les relations intactes
-    if status_update.status == ApplicationStatus.ACCEPTED and previous_status != ApplicationStatus.ACCEPTED:
-         # Recharger le candidat avec ses skills explicitement
-        candidate = db.query(Candidate).options(
-            joinedload(Candidate.skills)
-        ).filter(Candidate.id == db_app.candidate_id).first()
-        job = db.query(Job).filter(Job.id == db_app.job_id).first()
-        if candidate and job:
-            try:
-                await _promote_candidate_to_employee(candidate, job, db)
-                print(f"✅ Employé créé pour candidat {candidate.id} ({candidate.first_name} {candidate.last_name})")
-            except Exception as e:
-                print(f"❌ Erreur promotion candidat→employé: {str(e)}")
-                import traceback; traceback.print_exc()
-
-    db.refresh(db_app)
-
-
     # Enrichir pour le front (même logique que get_job_applications)
     db_app.job_title = db_app.job.title
     db_app.candidate_name = f"{db_app.candidate.first_name} {db_app.candidate.last_name}"
@@ -348,16 +335,75 @@ async def update_application_status(
     }
 
     return db_app
-async def _promote_candidate_to_employee(candidate: Candidate, job: Job, db: Session):
+
+
+@router.post("/{app_id}/hire", response_model=ApplicationResponse)
+async def hire_application(
+    app_id: int,
+    payload: HireRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Confirme l'intégration d'un candidat (bouton « Confirmer l'intégration » du
+    kanban) : passe la candidature à ACCEPTED puis crée l'employé correspondant,
+    en utilisant le titre de poste définitif saisi par le recruteur (sinon le
+    titre de l'offre). Idempotent grâce au garde de _promote (déjà employé).
+    """
+    db_app = db.query(Application).options(
+        joinedload(Application.candidate).joinedload(Candidate.skills),
+        joinedload(Application.job).joinedload(Job.requirements)
+    ).filter(Application.id == app_id).first()
+
+    if not db_app:
+        raise HTTPException(status_code=404, detail="Candidature non trouvée")
+
+    previous_status = db_app.status
+    db_app.status = ApplicationStatus.ACCEPTED
+    db.commit()
+
+    if previous_status != ApplicationStatus.ACCEPTED:
+        candidate = db.query(Candidate).options(
+            joinedload(Candidate.skills)
+        ).filter(Candidate.id == db_app.candidate_id).first()
+        job = db.query(Job).filter(Job.id == db_app.job_id).first()
+        if candidate and job:
+            try:
+                await _promote_candidate_to_employee(
+                    candidate, job, db, job_title=(payload.job_title or None)
+                )
+                print(f"✅ Intégration confirmée : employé créé pour candidat {candidate.id} ({candidate.first_name} {candidate.last_name})")
+            except Exception as e:
+                print(f"❌ Erreur promotion candidat→employé (hire): {str(e)}")
+                import traceback; traceback.print_exc()
+
+    db.refresh(db_app)
+    db_app.job_title = db_app.job.title
+    db_app.candidate_name = f"{db_app.candidate.first_name} {db_app.candidate.last_name}"
+    return db_app
+
+
+async def _promote_candidate_to_employee(candidate: Candidate, job: Job, db: Session, job_title: Optional[str] = None):
     """
     Crée automatiquement un employé à partir d'un candidat accepté.
     Idempotent : ne crée pas si l'employé existe déjà.
     """
     from ..models.employee import Employee, EmployeeSkill
+    from ..models.user import User, UserRole
+
+    # Le candidat recruté devient un employé : on bascule son rôle système pour qu'il
+    # accède à son espace employé, tout en conservant son profil (même user_id → même
+    # enregistrement Candidate, donc bio/CV/skills/formations sont « emportés »).
+    # On ne bascule QUE les CANDIDATE → EMPLOYEE (un RECRUITER/ADMIN qui possède aussi
+    # une fiche employé ne doit jamais être rétrogradé).
+    user = db.query(User).filter(User.id == candidate.user_id).first()
+    if user and user.role == UserRole.CANDIDATE:
+        user.role = UserRole.EMPLOYEE
 
     # Vérifier si déjà employé (par user_id)
     existing = db.query(Employee).filter(Employee.user_id == candidate.user_id).first()
     if existing:
+        db.commit()  # persiste le basculement de rôle même si l'employé existait déjà
         print(f"ℹ️ Candidat {candidate.id} est déjà employé (id={existing.id})")
         return existing
 
@@ -380,9 +426,9 @@ async def _promote_candidate_to_employee(candidate: Candidate, job: Job, db: Ses
         last_name=candidate.last_name,
         email=candidate.email,
         phone=candidate.phone,
-        job_title=job.title,
         years_of_experience=candidate.years_of_experience or 0,
         education_level=candidate.education_level or 0,
+        job_title=job_title or job.title,
         hire_date=datetime.utcnow(),
     )
     db.add(employee)

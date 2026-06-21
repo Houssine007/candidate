@@ -14,6 +14,9 @@
   --secondary: #385170;
   --muted: #64748b;
   --accent: #9fd3c7;
+  /* Focus ring: slate navy reads clearly against light surfaces (≈8:1),
+     unlike the mint primary which is too pale to signal focus on white. */
+  --ring: #385170;
 }
 
 .dark {
@@ -26,6 +29,8 @@
   --secondary: #385170;
   --muted: #94a3b8;
   --accent: #9fd3c7;
+  /* On the dark navy surface the mint primary is the high-contrast choice. */
+  --ring: #9fd3c7;
 }
 
 @layer base {
@@ -43,6 +48,27 @@
   h5,
   h6 {
     font-family: 'Outfit', sans-serif;
+  }
+
+  /* Keyboard focus is visible for every interactive element; pointer users
+     keep the clean look thanks to :focus-visible. Inputs opt out below
+     because they carry their own box-shadow focus ring. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  /* Honor the OS "reduce motion" setting: collapse transitions and animations
+     to near-instant rather than removing feedback entirely (vestibular safety). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }
 
@@ -89,70 +115,64 @@
   background-clip: text;
   -webkit-text-fill-color: transparent;
 }
-/* ── Job creation form fields ─────────────────────────────────────────────── */
+/* ── Form fields — one shared input system ────────────────────────────────────
+   Consolidated from three earlier variants. `.field-input` / `.field-label`
+   were defined but never used (removed). The two class names still referenced
+   in markup — `.form-input` (job forms) and `.input-field` (modals, onboarding)
+   — now share a single definition so every input looks identical. */
 
-.form-input {
+.form-input,
+.input-field {
   display: block;
   width: 100%;
-  background-color: hsl(var(--background));
-  border: 1.5px solid rgba(100, 116, 139, 0.25);
-  border-radius: 0.75rem;
-  padding: 0.65rem 0.875rem;
+  background-color: rgba(56, 81, 112, 0.06);
+  border: 1px solid rgba(56, 81, 112, 0.18);
+  border-radius: 1rem;
+  padding: 0.7rem 1rem;
   font-size: 0.875rem;
   font-weight: 500;
-  color: hsl(var(--foreground));
+  color: var(--foreground);
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
   line-height: 1.5;
 }
 
-.form-input::placeholder {
-  color: rgba(100, 116, 139, 0.5);
+.form-input::placeholder,
+.input-field::placeholder {
+  /* Readable hint without masquerading as a filled value. */
+  color: rgba(100, 116, 139, 0.65);
   font-weight: 400;
 }
 
-.form-input:focus {
-  border-color: rgba(159, 211, 199, 0.6);
+.form-input:hover:not(:focus),
+.input-field:hover:not(:focus) {
+  border-color: rgba(56, 81, 112, 0.32);
+}
+
+.form-input:focus,
+.input-field:focus {
+  border-color: rgba(159, 211, 199, 0.55);
   box-shadow: 0 0 0 3px rgba(159, 211, 199, 0.12);
 }
 
-.form-input:hover:not(:focus) {
-  border-color: rgba(100, 116, 139, 0.4);
-}
+/* Uppercase micro-labels: `.col-label` for table/column headers,
+   `.label-xs` for form-field labels. Weight kept at 800 to match the calmed
+   eyebrow scale (not the old 900). */
 
 .col-label {
   font-size: 0.5625rem;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: 0.15em;
-  color: rgba(100, 116, 139, 0.45);
-}
-
-.field-label {
-  display: block;
-  font-size: 0.625rem;
-  font-weight: 900;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: rgba(100, 116, 139, 0.7);
-  margin-bottom: 0.5rem;
 }
 
-.field-input {
+.label-xs {
   display: block;
-  width: 100%;
-  background-color: rgba(56, 81, 112, 0.05);
-  border: 1px solid rgba(56, 81, 112, 0.15);
-  border-radius: 1rem;
-  padding: 0.75rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: hsl(var(--foreground));
-  outline: none;
-  transition: border-color 0.2s;
-}
-
-.field-input:focus {
-  border-color: rgba(159, 211, 199, 0.4);
-  box-shadow: 0 0 0 2px rgba(159, 211, 199, 0.1);
+  font-size: 0.625rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  margin-bottom: 0.4rem;
 }

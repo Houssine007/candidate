@@ -3,7 +3,7 @@ import connectDB from '@/lib/mongodb';
 import Module from '@/models/Module';
 import Section from '@/models/Section';
 import Course from '@/models/Course';
-import jwt from 'jsonwebtoken';
+import { authorizeInstructor } from '@/lib/auth';
 
 // GET all sections for a module
 export async function GET(
@@ -13,15 +13,9 @@ export async function GET(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     // Handle both Promise and direct params for Next.js compatibility
     const resolvedParams = params instanceof Promise ? await params : params;
@@ -33,7 +27,7 @@ export async function GET(
     }
 
     // Verify course belongs to instructor
-    const course = await Course.findOne({ _id: module.courseId, instructorId: decoded.userId });
+    const course = await Course.findOne({ _id: module.courseId, instructorId: user.id });
     if (!course) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
@@ -55,15 +49,9 @@ export async function POST(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     // Handle both Promise and direct params for Next.js compatibility
     const resolvedParams = params instanceof Promise ? await params : params;
@@ -75,7 +63,7 @@ export async function POST(
     }
 
     // Verify course belongs to instructor
-    const course = await Course.findOne({ _id: module.courseId, instructorId: decoded.userId });
+    const course = await Course.findOne({ _id: module.courseId, instructorId: user.id });
     if (!course) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }

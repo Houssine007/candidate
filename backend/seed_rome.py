@@ -29,16 +29,16 @@ ALL_SKILLS = [
     {"name": "REST API",                 "cat": "Dev",      "rome": "M1805"},
     {"name": "GraphQL",                  "cat": "Dev",      "rome": "M1805"},
     # Data / IA
-    {"name": "SQL / PostgreSQL",         "cat": "Data",     "rome": "M1806"},
-    {"name": "MongoDB",                  "cat": "Data",     "rome": "M1806"},
-    {"name": "Machine Learning",         "cat": "Data",     "rome": "M1806"},
-    {"name": "Deep Learning",            "cat": "Data",     "rome": "M1806"},
-    {"name": "TensorFlow / PyTorch",     "cat": "Data",     "rome": "M1806"},
-    {"name": "Pandas / NumPy",           "cat": "Data",     "rome": "M1806"},
-    {"name": "Power BI / Tableau",       "cat": "Data",     "rome": "M1806"},
-    {"name": "Spark / Hadoop",           "cat": "Data",     "rome": "M1806"},
-    {"name": "ETL / Data Pipeline",      "cat": "Data",     "rome": "M1806"},
-    {"name": "NLP / LLM",                "cat": "Data",     "rome": "M1806"},
+    {"name": "SQL / PostgreSQL",         "cat": "Data",     "rome": "M1403"},
+    {"name": "MongoDB",                  "cat": "Data",     "rome": "M1403"},
+    {"name": "Machine Learning",         "cat": "Data",     "rome": "M1403"},
+    {"name": "Deep Learning",            "cat": "Data",     "rome": "M1403"},
+    {"name": "TensorFlow / PyTorch",     "cat": "Data",     "rome": "M1403"},
+    {"name": "Pandas / NumPy",           "cat": "Data",     "rome": "M1403"},
+    {"name": "Power BI / Tableau",       "cat": "Data",     "rome": "M1403"},
+    {"name": "Spark / Hadoop",           "cat": "Data",     "rome": "M1403"},
+    {"name": "ETL / Data Pipeline",      "cat": "Data",     "rome": "M1403"},
+    {"name": "NLP / LLM",                "cat": "Data",     "rome": "M1403"},
     # DevOps / Cloud
     {"name": "Docker / Kubernetes",      "cat": "DevOps",   "rome": "M1801"},
     {"name": "Linux Administration",     "cat": "DevOps",   "rome": "M1801"},
@@ -161,7 +161,7 @@ JOB_STANDARDS = [
     },
     {
         "title": "Data Scientist",
-        "code": "M1806-DS",
+        "code": "M1403-DS",
         "cat": "Data & IA",
         "desc": "Analyse les données pour en extraire de la valeur métier. Conçoit des modèles prédictifs et de machine learning. Collabore avec les équipes produit et engineering.",
         "skills": [
@@ -172,7 +172,7 @@ JOB_STANDARDS = [
     },
     {
         "title": "Data Engineer",
-        "code": "M1806-DE",
+        "code": "M1403-DE",
         "cat": "Data & IA",
         "desc": "Construit et maintient les pipelines de données. Conçoit les architectures data (lacs, entrepôts). Garantit la qualité, la disponibilité et la performance des données.",
         "skills": [
@@ -183,7 +183,7 @@ JOB_STANDARDS = [
     },
     {
         "title": "Ingénieur IA / ML",
-        "code": "M1806-AI",
+        "code": "M1403-AI",
         "cat": "Data & IA",
         "desc": "Conçoit et déploie des modèles d'intelligence artificielle en production. Spécialisé en deep learning, NLP ou computer vision. Transforme les recherches en solutions industrialisables.",
         "skills": [
@@ -194,7 +194,7 @@ JOB_STANDARDS = [
     },
     {
         "title": "Analyste Business Intelligence",
-        "code": "M1806-BI",
+        "code": "M1403-BI",
         "cat": "Data & IA",
         "desc": "Transforme les données en insights actionnables pour les décideurs. Crée des tableaux de bord et des rapports. Maîtrise les outils de visualisation et le SQL.",
         "skills": [

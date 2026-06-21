@@ -62,6 +62,24 @@ class InternalApplicationCreate(BaseModel):
     motivation_letter: Optional[str] = None
 
 
+# ─── Helpers ──────────────────────────────────────────────────────────────────
+
+def _resolve_company_id(current_user: User, db: Session) -> Optional[int]:
+    """
+    Renvoie le company_id de l'utilisateur, qu'il soit recruteur (propriétaire du
+    tenant) ou employé. La mobilité interne est consultée par les employés ET gérée
+    par les recruteurs : on ne doit donc pas exiger un profil recruteur.
+    """
+    from ..models.recruiter import Recruiter
+    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
+    if recruiter:
+        return recruiter.company_id
+    employee = db.query(Employee).filter(Employee.user_id == current_user.id).first()
+    if employee:
+        return employee.company_id
+    return None
+
+
 # ─── Endpoints ────────────────────────────────────────────────────────────────
 
 @router.get("/positions", response_model=List[InternalPositionResponse])
@@ -72,16 +90,14 @@ async def get_internal_positions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Lister les postes internes disponibles"""
-    from ..models.recruiter import Recruiter
-
-    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
-    if not recruiter:
-        raise HTTPException(status_code=403, detail="Profil recruteur non trouvé")
+    """Lister les postes internes disponibles (recruteur ou employé de l'entreprise)"""
+    company_id = _resolve_company_id(current_user, db)
+    if not company_id:
+        raise HTTPException(status_code=404, detail="Entreprise de l'utilisateur introuvable")
 
     query = db.query(InternalPosition).options(
         joinedload(InternalPosition.requirements).joinedload(InternalPositionRequirement.skill)
-    ).filter(InternalPosition.company_id == recruiter.company_id)
+    ).filter(InternalPosition.company_id == company_id)
 
     if status:
         query = query.filter(InternalPosition.status == status)
@@ -98,18 +114,16 @@ async def get_internal_position(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Détails d'un poste interne"""
-    from ..models.recruiter import Recruiter
-
-    recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
-    if not recruiter:
-        raise HTTPException(status_code=403, detail="Profil recruteur non trouvé")
+    """Détails d'un poste interne (recruteur ou employé de l'entreprise)"""
+    company_id = _resolve_company_id(current_user, db)
+    if not company_id:
+        raise HTTPException(status_code=404, detail="Entreprise de l'utilisateur introuvable")
 
     position = db.query(InternalPosition).options(
         joinedload(InternalPosition.requirements).joinedload(InternalPositionRequirement.skill)
     ).filter(
         InternalPosition.id == position_id,
-        InternalPosition.company_id == recruiter.company_id
+        InternalPosition.company_id == company_id
     ).first()
 
     if not position:

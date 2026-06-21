@@ -6,7 +6,7 @@ from ..models.user import User
 from .auth import get_current_user
 from ..services.permissions import init_company_roles
 
-router = APIRouter(prefix="/companies", tags=["Companies"])
+router = APIRouter(tags=["Companies"])
 
 # Schémas (copie-les ici ou importe-les si tu as un fichier schemas)
 from pydantic import BaseModel, HttpUrl

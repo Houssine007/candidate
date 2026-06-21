@@ -12,6 +12,12 @@ import os
 
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Console Windows en cp1252 : force UTF-8 pour les emojis du résumé (✅/⚠️)
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 from app.core.database import SessionLocal
 from app.models.skill import Skill
 
@@ -23,7 +29,8 @@ NAME_TO_ROME: dict[str, str] = {
     "javascript": "M1805", "typescript": "M1805", "node.js": "M1805", "nodejs": "M1805",
     "react": "M1805", "vue.js": "M1805", "vuejs": "M1805", "angular": "M1805",
     "next.js": "M1805", "nextjs": "M1805", "svelte": "M1805",
-    "html": "M1805", "css": "M1805", "tailwind": "M1805", "bootstrap": "M1805",
+    "html": "M1805", "css": "M1805", "tailwind": "M1805", "tailwind css": "M1805",
+    "bootstrap": "M1805", "html/css": "M1805",
     "php": "M1805", "laravel": "M1805", "symfony": "M1805",
     "ruby": "M1805", "rails": "M1805", "ruby on rails": "M1805",
     "java": "M1805", "spring": "M1805", "spring boot": "M1805",
@@ -45,16 +52,19 @@ NAME_TO_ROME: dict[str, str] = {
     "docker": "M1810", "kubernetes": "M1810", "helm": "M1810",
     "terraform": "M1810", "ansible": "M1810", "puppet": "M1810",
     "aws": "M1810", "azure": "M1810", "gcp": "M1810", "google cloud": "M1810",
-    "linux": "M1810", "bash": "M1810", "shell": "M1810",
+    "linux": "M1810", "linux administration": "M1810", "unix": "M1810",
+    "bash": "M1810", "shell": "M1810",
     "nginx": "M1810", "apache": "M1810",
     "ci/cd": "M1810", "github actions": "M1810", "gitlab ci": "M1810",
     "jenkins": "M1810", "travis ci": "M1810",
+    "git": "M1810", "github": "M1810", "gitlab": "M1810",
     # Sécurité
     "cybersecurity": "M1802", "sécurité informatique": "M1802",
     "penetration testing": "M1802", "pentest": "M1802",
     "owasp": "M1802", "siem": "M1802", "soc": "M1802",
     # Gestion de projet / méthodes
-    "agile": "M1302", "scrum": "M1302", "kanban": "M1302", "jira": "M1302",
+    "agile": "M1302", "scrum": "M1302", "agile/scrum": "M1302", "agile / scrum": "M1302",
+    "kanban": "M1302", "jira": "M1302",
     "project management": "M1302", "gestion de projet": "M1302",
     "prince2": "M1302", "pmp": "M1302",
     # Design / UX

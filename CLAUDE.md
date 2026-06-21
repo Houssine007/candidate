@@ -25,6 +25,8 @@ venv\Scripts\activate          # Windows
 python run.py                  # uvicorn app.main:app, port 8000, reload on
 alembic upgrade head           # apply migrations
 python seed.py                 # seed TechCorp + recruiters + jobs + candidates
+                               # (auto-normalizes skills.rome_code so profile
+                               #  analysis works out of the box)
 # Swagger at http://localhost:8000/docs
 
 # RH frontend (from frontend/)
@@ -111,7 +113,17 @@ App Router under `frontend/src/app/`, organized by role dashboard:
 Next.js app where the API routes (`lms/app/api/`) are the backend. Mongoose models in
 `lms/models/` (Course, Module, Section, Quiz, Question, Answer, Enrollment, Progress,
 Category) connect to MongoDB via `lms/lib/mongodb.ts`. `lms/middleware.ts` adds CORS for the
-RH origin. Instructor-gated routes use `requireInstructor` (instructor flag or system ADMIN).
+RH origin.
+
+**Instructor auth (SSO-unified).** All `app/api/instructor/*` routes authorize via the
+shared `authorizeInstructor(req)` helper in `lms/lib/auth.ts` (verifies the RH JWT with
+`jose` + shared secret; allows `is_instructor` **or** system `ADMIN`). Ownership is scoped
+by the **numeric RH user id** (`user.id`, from the JWT `sub`) — not a Mongo ObjectId.
+Accordingly `Course.instructorId` and `Category.instructorId` are `Number` (RH Postgres id).
+Do **not** reintroduce the legacy `jwt.verify(...) + role === 'instructor' + decoded.userId`
+pattern: the RH JWT carries `role: RECRUITER|ADMIN|...` (never `'instructor'`), so that check
+always fails under SSO. `/api/auth/me` maps `is_instructor → role: 'instructor'` only for the
+benefit of client-side page guards.
 
 ## Conventions & gotchas
 

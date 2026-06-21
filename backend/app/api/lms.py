@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
 
+from ..core.config import settings
 from ..core.database import get_db
 from ..models.candidate import Candidate, CandidateSkill
 from ..models.user import User, UserRole
@@ -26,36 +27,51 @@ async def lms_course_completed(
     current_user: User = Depends(get_current_user)
 ):
     """
-    Appelé par le LMS quand un employé complète un cours.
-    Met à jour le niveau de compétence de l'employé dans PostgreSQL.
+    Bridge appelé par le LMS à la réussite d'un cours. Relève le niveau de la
+    compétence (jamais à la baisse) dans les DEUX profils de l'utilisateur :
+    son profil candidat (vivier de talents) ET son profil employé (vue
+    organisation / GPEC), selon ceux qui existent. C'est ce double-écrit qui
+    permet à la boucle vivante de se refléter dans la cartographie GPEC, qui
+    lit les compétences employé.
     """
+    from ..models.employee import Employee, EmployeeSkill
+
     # Seul un service interne (ADMIN) ou l'employé lui-même peut appeler ce bridge
     if current_user.role not in [UserRole.ADMIN] and current_user.id != payload.employee_id:
         raise HTTPException(status_code=403, detail="Non autorisé")
 
-    # Trouver le profil candidat lié à cet employé
+    def _raise_or_create(existing, model, owner_field: str, owner_id: int) -> str:
+        """Relève le niveau (jamais à la baisse) ou crée l'entrée de compétence."""
+        if existing:
+            if payload.skill_level > (existing.level or 0):
+                existing.level = payload.skill_level
+                return "relevé"
+            return "inchangé"
+        db.add(model(**{owner_field: owner_id, "skill_id": payload.skill_id, "level": payload.skill_level}))
+        return "créé"
+
+    updated: list[str] = []
+
+    # ── Profil candidat (vivier global) ──
     candidate = db.query(Candidate).filter(Candidate.user_id == payload.employee_id).first()
-    if not candidate:
-        raise HTTPException(status_code=404, detail="Profil employé non trouvé")
+    if candidate:
+        existing = db.query(CandidateSkill).filter(
+            CandidateSkill.candidate_id == candidate.id,
+            CandidateSkill.skill_id == payload.skill_id,
+        ).first()
+        updated.append(f"candidat:{_raise_or_create(existing, CandidateSkill, 'candidate_id', candidate.id)}")
 
-    # Mettre à jour ou créer la compétence
-    existing_skill = db.query(CandidateSkill).filter(
-        CandidateSkill.candidate_id == candidate.id,
-        CandidateSkill.skill_id == payload.skill_id
-    ).first()
+    # ── Profil(s) employé (vue organisation / GPEC) ──
+    employees = db.query(Employee).filter(Employee.user_id == payload.employee_id).all()
+    for emp in employees:
+        existing = db.query(EmployeeSkill).filter(
+            EmployeeSkill.employee_id == emp.id,
+            EmployeeSkill.skill_id == payload.skill_id,
+        ).first()
+        updated.append(f"employe#{emp.id}:{_raise_or_create(existing, EmployeeSkill, 'employee_id', emp.id)}")
 
-    if existing_skill:
-        # Ne diminue pas le niveau si déjà supérieur
-        if payload.skill_level > existing_skill.level:
-            existing_skill.level = payload.skill_level
-    else:
-        new_skill = CandidateSkill(
-            candidate_id=candidate.id,
-            skill_id=payload.skill_id,
-            level=payload.skill_level,
-            years_experience=0
-        )
-        db.add(new_skill)
+    if not candidate and not employees:
+        raise HTTPException(status_code=404, detail="Aucun profil (candidat/employé) trouvé pour cet utilisateur")
 
     db.commit()
 
@@ -64,7 +80,8 @@ async def lms_course_completed(
         "employee_id": payload.employee_id,
         "skill_id": payload.skill_id,
         "skill_level": payload.skill_level,
-        "message": f"Compétence mise à jour avec succès"
+        "profiles": updated,
+        "message": "Compétence mise à jour (profils candidat + employé)",
     }
 
 
@@ -139,9 +156,6 @@ async def assign_course_to_employee(
     import os
 
     LMS_URL = os.getenv("LMS_API_URL", "http://localhost:3001")
-    token = db.execute(
-        "SELECT access_token FROM user_tokens WHERE user_id = :id LIMIT 1",
-    )
 
     try:
         async with httpx.AsyncClient() as client:
@@ -163,11 +177,10 @@ async def assign_course_to_employee(
 
 def _get_service_token() -> str:
     """Génère un token de service pour les appels internes LMS ↔ RH."""
-    import jwt
-    import os
+    from jose import jwt
     from datetime import datetime, timedelta
 
-    secret = os.getenv("SECRET_KEY", "dev_secret_key_fixed_for_stability_change_in_prod")
+    secret = settings.SECRET_KEY
     payload = {
         "sub": "0",
         "email": "service@internal",

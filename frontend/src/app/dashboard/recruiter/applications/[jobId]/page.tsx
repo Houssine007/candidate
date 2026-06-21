@@ -9,6 +9,9 @@ import {
 } from "@/lib/api"
 import { useAuthStore } from "@/lib/auth-store"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { Toast, useToast } from "@/components/toast"
+import { useDialog } from "@/lib/use-dialog"
+import { InfoHint } from "@/components/info-hint"
 import {
     ArrowLeft,
     Users,
@@ -17,7 +20,6 @@ import {
     CheckCircle2,
     XCircle,
     Search,
-    MoreVertical,
     Mail,
     Calendar,
     AlertCircle,
@@ -50,9 +52,9 @@ const RECO: Record<string, { label: string; color: string; bg: string }> = {
 }
 
 function bridgeBadge(level?: string) {
-    if (level === "exact")  return { label: "Pontable", color: "text-violet-500", bg: "bg-violet-500/10", border: "border-violet-500/20" }
-    if (level === "domain") return { label: "Proche",   color: "text-blue-500",   bg: "bg-blue-500/10",   border: "border-blue-500/20" }
-    return                         { label: "À former", color: "text-amber-600",  bg: "bg-amber-500/10",  border: "border-amber-500/20" }
+    if (level === "exact")  return { label: "Pontable", hint: "Métier très proche : l'écart se comble rapidement par la formation.", color: "text-violet-500", bg: "bg-violet-500/10", border: "border-violet-500/20" }
+    if (level === "domain") return { label: "Proche",   hint: "Même domaine : une formation modérée suffit à combler l'écart.",      color: "text-blue-500",   bg: "bg-blue-500/10",   border: "border-blue-500/20" }
+    return                         { label: "À former", hint: "Écart important : nécessite une formation dédiée.",                    color: "text-amber-600",  bg: "bg-amber-500/10",  border: "border-amber-500/20" }
 }
 
 
@@ -80,8 +82,17 @@ export default function KanbanPage() {
     const [hireTitle, setHireTitle] = React.useState("")
     const [hireLoading, setHireLoading] = React.useState(false)
 
+    // Confirmation de refus (action réversible mais qui mérite un garde-fou)
+    const [rejectModal, setRejectModal] = React.useState<Application | null>(null)
+
     // Sprint 3 : axe d'affichage/tri — fit (besoin actuel) ou potentiel (formable)
     const [sortMode, setSortMode] = React.useState<"fit" | "potential">("fit")
+
+    const { toast, showToast } = useToast()
+    const appRef = useDialog<HTMLDivElement>(selectedApp !== null, () => setSelectedApp(null))
+    const hireRef = useDialog<HTMLDivElement>(hireModal !== null, () => setHireModal(null))
+    const employeeRef = useDialog<HTMLDivElement>(selectedEmployee !== null, () => setSelectedEmployee(null))
+    const rejectRef = useDialog<HTMLDivElement>(rejectModal !== null, () => setRejectModal(null))
 
     const loadData = React.useCallback(async () => {
         if (!token || !jobId) return
@@ -145,9 +156,25 @@ export default function KanbanPage() {
             setHireModal(null)
             setSelectedApp(null)
         } catch (e: any) {
-            alert(e.message || "Erreur lors de la confirmation")
+            showToast("error", e.message || "Erreur lors de la confirmation")
         } finally {
             setHireLoading(false)
+        }
+    }
+
+    const handleConfirmReject = async () => {
+        if (!token || !rejectModal) return
+        setUpdatingAppId(rejectModal.id)
+        try {
+            await updateApplicationStatus(rejectModal.id, "REJECTED", token)
+            setApplications(prev => prev.map(a => a.id === rejectModal.id ? { ...a, status: "REJECTED" } : a))
+            setRejectModal(null)
+            setSelectedApp(null)
+        } catch (err) {
+            console.error(err)
+            showToast("error", "Erreur lors du refus. Vérifiez votre connexion.")
+        } finally {
+            setUpdatingAppId(null)
         }
     }
 
@@ -162,6 +189,12 @@ export default function KanbanPage() {
             }
             return
         }
+        // Intercepter REJECTED → demander confirmation avant de refuser
+        if (newStatus === "REJECTED") {
+            const app = applications.find(a => a.id === appId)
+            if (app) setRejectModal(app)
+            return
+        }
         setUpdatingAppId(appId)
         try {
             await updateApplicationStatus(appId, newStatus, token)
@@ -173,7 +206,7 @@ export default function KanbanPage() {
             // Optional: Notification or subtle sound
         } catch (err) {
             console.error(err)
-            alert("Erreur lors du changement de statut. Vérifiez votre connexion.")
+            showToast("error", "Erreur lors du changement de statut. Vérifiez votre connexion.")
         } finally {
             setUpdatingAppId(null)
         }
@@ -193,13 +226,14 @@ export default function KanbanPage() {
         <div className="min-h-screen flex items-center justify-center bg-background">
             <div className="flex flex-col items-center gap-4">
                 <div className="w-12 h-12 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
-                <p className="text-[10px] font-black uppercase tracking-[0.3em] text-muted font-sans">Chargement du pipeline...</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted font-sans">Chargement du pipeline...</p>
             </div>
         </div>
     )
 
     return (
         <>
+        <Toast toast={toast} />
         <div className="min-h-screen bg-background text-foreground pb-12">
             <div className="glow-mesh" />
 
@@ -224,17 +258,22 @@ export default function KanbanPage() {
                             <div className="flex items-center gap-1 p-1 bg-secondary/10 rounded-xl border border-secondary/20">
                                 <button
                                     onClick={() => setSortMode("fit")}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${sortMode === "fit" ? "bg-primary text-background shadow" : "text-muted hover:text-foreground"}`}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${sortMode === "fit" ? "bg-primary text-background shadow" : "text-muted hover:text-foreground"}`}
                                 >
                                     <Zap className="w-3 h-3" /> Fit
                                 </button>
                                 <button
                                     onClick={() => setSortMode("potential")}
-                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${sortMode === "potential" ? "bg-violet-500 text-white shadow" : "text-muted hover:text-foreground"}`}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${sortMode === "potential" ? "bg-violet-500 text-white shadow" : "text-muted hover:text-foreground"}`}
                                 >
                                     <Sparkles className="w-3 h-3" /> Potentiel
                                 </button>
                             </div>
+                            <InfoHint label="Que signifient Fit et Potentiel ?">
+                                <strong className="text-foreground">Fit</strong> — adéquation au besoin actuel (compétences, expérience et diplôme déjà acquis).
+                                <br />
+                                <strong className="text-foreground">Potentiel</strong> — capacité à combler les écarts par la formation (métiers proches, certifications).
+                            </InfoHint>
                             <button
                                 onClick={() => { setShowMobility(!showMobility); if (!showMobility && internalMatches.length === 0) loadInternalMatches() }}
                                 className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all ${showMobility ? 'bg-violet-500 text-white border-violet-500' : 'bg-violet-500/10 text-violet-500 border-violet-500/20 hover:bg-violet-500/20'}`}
@@ -252,7 +291,7 @@ export default function KanbanPage() {
             {/* Panneau Mobilité Interne */}
             {showMobility && (
                 <div className="container mx-auto px-6 pt-28 pb-4">
-                    <div className="glass-panel rounded-[2rem] p-6 border-violet-500/20">
+                    <div className="glass-panel rounded-panel-sm p-6 border-violet-500/20">
                         <div className="flex items-center justify-between mb-6">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-violet-500/10 rounded-xl flex items-center justify-center">
@@ -296,14 +335,14 @@ export default function KanbanPage() {
                                         {/* Barre de score */}
                                         <div className="mb-4">
                                             <div className="h-1.5 bg-secondary/20 rounded-full overflow-hidden">
-                                                <div className="h-full bg-gradient-to-r from-violet-500 to-blue-500 rounded-full transition-all" style={{ width: `${emp.total_score}%` }} />
+                                                <div className="h-full bg-violet-500 rounded-full transition-all" style={{ width: `${emp.total_score}%` }} />
                                             </div>
                                         </div>
 
                                         {/* Gaps */}
                                         {emp.gaps.filter(g => g.type === 'skill').length > 0 && (
                                             <div className="mb-4">
-                                                <p className="text-[9px] font-black uppercase tracking-widest text-muted mb-2">Compétences à développer</p>
+                                                <p className="text-[9px] font-bold uppercase tracking-widest text-muted mb-2">Compétences à développer</p>
                                                 <div className="space-y-1.5">
                                                     {emp.gaps.filter(g => g.type === 'skill').map((gap, i) => (
                                                         <div key={i} className="flex items-center justify-between text-[10px]">
@@ -317,7 +356,7 @@ export default function KanbanPage() {
 
                                         <button
                                             onClick={() => setSelectedEmployee(emp)}
-                                            className="w-full py-2 text-[10px] font-black uppercase tracking-widest bg-violet-500/10 text-violet-500 rounded-xl hover:bg-violet-500 hover:text-white transition-all flex items-center justify-center gap-2"
+                                            className="w-full py-2 text-[10px] font-bold uppercase tracking-widest bg-violet-500/10 text-violet-500 rounded-xl hover:bg-violet-500 hover:text-white transition-all flex items-center justify-center gap-2"
                                         >
                                             <GraduationCap className="w-3.5 h-3.5" /> Assigner des formations
                                         </button>
@@ -350,22 +389,19 @@ export default function KanbanPage() {
                                 <div className="flex items-center justify-between mb-4 px-2">
                                     <div className="flex items-center gap-3">
                                         <div className={`w-2 h-2 rounded-full ${col.bg.replace('/10', '')}`} />
-                                        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-foreground/80">{col.label}</h3>
+                                        <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-foreground/80">{col.label}</h3>
                                         <span className="text-[10px] font-black px-2 py-0.5 bg-secondary/20 rounded-md text-muted italic">
                                             {colApps.length}
                                         </span>
                                     </div>
-                                    <button className="p-1.5 hover:bg-secondary/20 rounded-lg text-muted/40">
-                                        <MoreVertical className="w-4 h-4" />
-                                    </button>
                                 </div>
 
                                 {/* Column Content */}
-                                <div className="flex-1 bg-secondary/5 border border-secondary/10 rounded-[2rem] p-4 overflow-y-auto space-y-4 shadow-inner scrollbar-hide">
+                                <div className="flex-1 bg-secondary/5 border border-secondary/10 rounded-panel-sm p-4 overflow-y-auto space-y-4 shadow-inner scrollbar-hide">
                                     {colApps.length === 0 ? (
                                         <div className="flex flex-col items-center justify-center h-32 opacity-20">
                                             <Clock className="w-8 h-8 mb-2" />
-                                            <p className="text-[9px] font-black uppercase tracking-widest italic">Vide</p>
+                                            <p className="text-[9px] font-bold uppercase tracking-widest italic">Vide</p>
                                         </div>
                                     ) : (
                                         colApps.map(app => (
@@ -411,7 +447,7 @@ export default function KanbanPage() {
                                                 {/* Badge de recommandation (Sprint 3) */}
                                                 {app.match_details?.recommendation && RECO[app.match_details.recommendation] && (
                                                     <div className="mb-3">
-                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${RECO[app.match_details.recommendation].bg} ${RECO[app.match_details.recommendation].color}`}>
+                                                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest ${RECO[app.match_details.recommendation].bg} ${RECO[app.match_details.recommendation].color}`}>
                                                             <Sparkles className="w-3 h-3" /> {RECO[app.match_details.recommendation].label}
                                                         </span>
                                                     </div>
@@ -451,7 +487,7 @@ export default function KanbanPage() {
             {/* Match Deep Dive Modal */}
             {selectedApp && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-background/60 backdrop-blur-md animate-in fade-in duration-300">
-                    <div className="glass-panel w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative border-primary/20">
+                    <div ref={appRef} role="dialog" aria-modal="true" aria-label="Dossier candidat" tabIndex={-1} className="glass-panel w-full max-w-4xl max-h-[90vh] rounded-panel-lg shadow-2xl flex flex-col overflow-hidden relative border-primary/20">
                         <button
                             onClick={() => setSelectedApp(null)}
                             className="absolute top-8 right-8 p-3 bg-secondary/10 hover:bg-secondary/20 rounded-2xl text-muted hover:text-foreground transition-all z-10"
@@ -475,7 +511,7 @@ export default function KanbanPage() {
                                     </svg>
                                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                                         <span className="text-4xl font-black text-foreground">{Math.round(selectedApp.match_details?.total_score || 0)}%</span>
-                                        <span className="text-[10px] font-black uppercase text-muted tracking-widest">Score Global</span>
+                                        <span title="Adéquation globale = compétences 60% + expérience 25% + diplôme 15%" className="text-[10px] font-bold uppercase text-muted tracking-widest">Score Global</span>
                                     </div>
                                 </div>
 
@@ -483,13 +519,13 @@ export default function KanbanPage() {
                                     <div className="flex items-center gap-4 mb-4 justify-center md:justify-start">
                                         <span className="badge-rh bg-primary/10 text-primary">Dossier Candidat</span>
                                         {/* Status Badge in Modal */}
-                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border border-current/10 ${COLUMNS.find(c => c.id === selectedApp.status)?.bg || "bg-secondary/10"
+                                        <span className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border border-current/10 ${COLUMNS.find(c => c.id === selectedApp.status)?.bg || "bg-secondary/10"
                                             } ${COLUMNS.find(c => c.id === selectedApp.status)?.color || "text-muted"
                                             }`}>
                                             {COLUMNS.find(c => c.id === selectedApp.status)?.label || selectedApp.status}
                                         </span>
                                     </div>
-                                    <h2 className="text-5xl font-black tracking-tight mb-2 text-foreground">{selectedApp.candidate_name}</h2>
+                                    <h2 className="text-4xl font-extrabold tracking-tight mb-2 text-foreground">{selectedApp.candidate_name}</h2>
                                     <p className="text-muted font-medium text-lg italic mb-6">"{selectedApp.cover_letter || "Aucune lettre de motivation fournie."}"</p>
 
                                     <div className="flex flex-wrap gap-3 justify-center md:justify-start">
@@ -529,13 +565,13 @@ export default function KanbanPage() {
                                     <div className="lg:col-span-2 space-y-8">
                                         {selectedApp.candidate_profile?.bio && (
                                             <div>
-                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-3">Bio Professionnelle</h3>
+                                                <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary mb-3">Bio Professionnelle</h3>
                                                 <p className="text-foreground/80 font-medium leading-relaxed bg-secondary/5 p-6 rounded-3xl border border-secondary/10">{selectedApp.candidate_profile.bio}</p>
                                             </div>
                                         )}
                                         {selectedApp.candidate_profile?.experience_detail && (
                                             <div>
-                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-primary mb-3">Parcours Professionnel</h3>
+                                                <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-primary mb-3">Parcours Professionnel</h3>
                                                 <p className="text-foreground/80 font-medium whitespace-pre-wrap leading-relaxed bg-secondary/5 p-6 rounded-3xl border border-secondary/10">{selectedApp.candidate_profile.experience_detail}</p>
                                             </div>
                                         )}
@@ -543,7 +579,7 @@ export default function KanbanPage() {
                                     <div className="space-y-8">
                                         {selectedApp.candidate_profile?.formations && (
                                             <div>
-                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-blue-500 mb-3">Formation</h3>
+                                                <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-blue-500 mb-3">Formation</h3>
                                                 <div className="p-6 bg-blue-500/5 rounded-3xl border border-blue-500/10">
                                                     <p className="text-foreground/80 font-bold text-sm whitespace-pre-wrap">{selectedApp.candidate_profile.formations}</p>
                                                 </div>
@@ -551,7 +587,7 @@ export default function KanbanPage() {
                                         )}
                                         {selectedApp.candidate_profile?.certifications && (
                                             <div>
-                                                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-500 mb-3 transition-all duration-300">Certifications</h3>
+                                                <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-amber-500 mb-3 transition-all duration-300">Certifications</h3>
                                                 <div className="p-6 bg-amber-500/5 rounded-3xl border border-amber-500/10">
                                                     <p className="text-foreground/80 font-bold text-sm whitespace-pre-wrap">{selectedApp.candidate_profile.certifications}</p>
                                                 </div>
@@ -561,8 +597,8 @@ export default function KanbanPage() {
                                 </div>
 
                                 {selectedApp.candidate_profile?.cv_text && (
-                                    <div className="p-8 bg-black/5 dark:bg-white/5 rounded-[2.5rem] border border-secondary/10">
-                                        <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-muted mb-4 flex items-center gap-2">
+                                    <div className="p-8 bg-black/5 dark:bg-white/5 rounded-panel border border-secondary/10">
+                                        <h3 className="text-[10px] font-bold uppercase tracking-[0.3em] text-muted mb-4 flex items-center gap-2">
                                             <FileText className="w-4 h-4" /> Texte de son CV complet
                                         </h3>
                                         <div className="max-h-60 overflow-y-auto pr-4 text-xs font-mono text-muted/80 leading-relaxed whitespace-pre-wrap scrollbar-hide">
@@ -574,8 +610,8 @@ export default function KanbanPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 {/* Skills Comparison */}
-                                <div className="p-8 bg-secondary/5 border border-secondary/10 rounded-[2.5rem]">
-                                    <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+                                <div className="p-8 bg-secondary/5 border border-secondary/10 rounded-panel">
+                                    <h3 className="text-sm font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
                                         <Target className="w-4 h-4 text-primary" /> Match des Compétences
                                     </h3>
                                     <div className="space-y-4">
@@ -606,15 +642,15 @@ export default function KanbanPage() {
                                 </div>
 
                                 {/* Gap Analysis */}
-                                <div className="p-8 bg-black/5 dark:bg-white/5 border border-secondary/10 rounded-[2.5rem]">
-                                    <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+                                <div className="p-8 bg-black/5 dark:bg-white/5 border border-secondary/10 rounded-panel">
+                                    <h3 className="text-sm font-bold uppercase tracking-widest mb-6 flex items-center gap-2">
                                         <AlertCircle className="w-4 h-4 text-amber-500" /> Analyse des Gaps
                                     </h3>
                                     <div className="space-y-4">
                                         {!selectedApp.match_details?.gaps || selectedApp.match_details.gaps.length === 0 ? (
                                             <div className="py-12 text-center">
                                                 <CheckCircle2 className="w-12 h-12 text-primary mx-auto mb-4" />
-                                                <p className="text-xs font-black uppercase tracking-widest text-primary">Profil Parfaitement Aligné</p>
+                                                <p className="text-xs font-bold uppercase tracking-widest text-primary">Profil Parfaitement Aligné</p>
                                             </div>
                                         ) : (
                                             selectedApp.match_details.gaps.map((gap: any, i: number) => {
@@ -626,7 +662,7 @@ export default function KanbanPage() {
                 {isSkill ? <Zap className={`w-4 h-4 ${bb?.color || 'text-amber-500'}`} /> : <TrendingUp className="w-4 h-4 text-amber-500" />}
             </div>
             <div className="flex-1">
-                <p className={`text-[10px] font-black uppercase tracking-tighter ${bb?.color || 'text-amber-600'}`}>
+                <p className={`text-[10px] font-bold uppercase tracking-tighter ${bb?.color || 'text-amber-600'}`}>
                     {isSkill ? 'Compétence' : gap.type === 'experience' ? 'Expérience' : 'Études'}
                 </p>
                 <p className="text-xs font-black">{gap.name || gap.type}</p>
@@ -635,7 +671,7 @@ export default function KanbanPage() {
                 </p>
             </div>
             {isSkill && bb && (
-                <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap ${bb.bg} ${bb.color}`}>
+                <span title={bb.hint} className={`text-[8px] font-bold uppercase tracking-widest px-2 py-1 rounded-md whitespace-nowrap ${bb.bg} ${bb.color}`}>
                     {bb.label}
                 </span>
             )}
@@ -651,13 +687,13 @@ export default function KanbanPage() {
                         {/* Modal Footer */}
                         <div className="p-8 border-t border-secondary/10 flex flex-col md:flex-row items-center justify-between bg-secondary/5 z-20 gap-4">
                             <div className="flex flex-col gap-2 w-full md:w-auto">
-                                <p className="text-[10px] font-black uppercase tracking-widest text-muted text-center md:text-left">Changer le statut</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest text-muted text-center md:text-left">Changer le statut</p>
                                 <div className="flex flex-wrap justify-center md:justify-start gap-2">
                                     {selectedApp.status !== "REVIEWING" && (
                                         <button
                                             disabled={updatingAppId !== null}
                                             onClick={() => handleStatusChange(selectedApp.id, "REVIEWING")}
-                                            className="px-4 py-2 bg-blue-500/10 text-blue-500 text-[10px] font-black uppercase rounded-xl border border-blue-500/10 hover:bg-blue-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                                            className="px-4 py-2 bg-blue-500/10 text-blue-500 text-[10px] font-bold uppercase rounded-xl border border-blue-500/10 hover:bg-blue-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
                                         >
                                             {updatingAppId === selectedApp.id ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : null}
                                             En Revue
@@ -667,7 +703,7 @@ export default function KanbanPage() {
                                         <button
                                             disabled={updatingAppId !== null}
                                             onClick={() => handleStatusChange(selectedApp.id, "SHORTLISTED")}
-                                            className="px-4 py-2 bg-purple-500/10 text-purple-500 text-[10px] font-black uppercase rounded-xl border border-purple-500/10 hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                                            className="px-4 py-2 bg-purple-500/10 text-purple-500 text-[10px] font-bold uppercase rounded-xl border border-purple-500/10 hover:bg-purple-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
                                         >
                                             {updatingAppId === selectedApp.id ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : null}
                                             Finaliste
@@ -677,7 +713,7 @@ export default function KanbanPage() {
                                         <button
                                             disabled={updatingAppId !== null}
                                             onClick={() => handleStatusChange(selectedApp.id, "ACCEPTED")}
-                                            className="px-4 py-2 bg-emerald-500/10 text-emerald-500 text-[10px] font-black uppercase rounded-xl border border-emerald-500/10 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                                            className="px-4 py-2 bg-emerald-500/10 text-emerald-500 text-[10px] font-bold uppercase rounded-xl border border-emerald-500/10 hover:bg-emerald-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
                                         >
                                             {updatingAppId === selectedApp.id ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : null}
                                             Recruter
@@ -687,7 +723,7 @@ export default function KanbanPage() {
                                         <button
                                             disabled={updatingAppId !== null}
                                             onClick={() => handleStatusChange(selectedApp.id, "REJECTED")}
-                                            className="px-4 py-2 bg-red-500/10 text-red-500 text-[10px] font-black uppercase rounded-xl border border-red-500/10 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
+                                            className="px-4 py-2 bg-red-500/10 text-red-500 text-[10px] font-bold uppercase rounded-xl border border-red-500/10 hover:bg-red-500 hover:text-white transition-all disabled:opacity-50 flex items-center gap-2"
                                         >
                                             {updatingAppId === selectedApp.id ? <div className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" /> : null}
                                             Refuser
@@ -710,7 +746,7 @@ export default function KanbanPage() {
         {/* Modal confirmation d'intégration */}
         {hireModal && (
             <div className="fixed inset-0 bg-background/90 backdrop-blur-md z-[300] flex items-center justify-center p-6">
-                <div className="glass-panel p-10 rounded-[3rem] w-full max-w-md shadow-2xl border-emerald-500/30">
+                <div ref={hireRef} role="dialog" aria-modal="true" aria-label="Confirmer l'intégration" tabIndex={-1} className="glass-panel p-10 rounded-panel-lg w-full max-w-md shadow-2xl border-emerald-500/30">
                     <div className="w-16 h-16 bg-emerald-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
                         <CheckCircle2 className="w-8 h-8 text-emerald-500" />
                     </div>
@@ -721,7 +757,7 @@ export default function KanbanPage() {
                     </p>
 
                     <div className="mb-6">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-muted mb-2 block">
+                        <label className="text-[10px] font-bold uppercase tracking-widest text-muted mb-2 block">
                             Poste / Fonction définitif(ve)
                         </label>
                         <input
@@ -737,14 +773,14 @@ export default function KanbanPage() {
                     <div className="flex gap-3">
                         <button
                             onClick={() => { setHireModal(null) }}
-                            className="flex-1 py-4 font-black uppercase text-xs text-muted hover:text-foreground transition-colors"
+                            className="flex-1 py-4 font-bold uppercase text-xs text-muted hover:text-foreground transition-colors"
                         >
                             Annuler
                         </button>
                         <button
                             onClick={handleConfirmHire}
                             disabled={!hireTitle.trim() || hireLoading}
-                            className="flex-1 py-4 font-black uppercase text-xs bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                            className="flex-1 py-4 font-bold uppercase text-xs bg-emerald-500 text-white rounded-2xl hover:bg-emerald-600 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
                         >
                             {hireLoading
                                 ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -757,10 +793,44 @@ export default function KanbanPage() {
             </div>
         )}
 
+        {/* Modal confirmation de refus */}
+        {rejectModal && (
+            <div className="fixed inset-0 bg-background/90 backdrop-blur-md z-[300] flex items-center justify-center p-6">
+                <div ref={rejectRef} role="dialog" aria-modal="true" aria-label="Confirmer le refus" tabIndex={-1} className="glass-panel p-10 rounded-panel-lg w-full max-w-md shadow-2xl border-red-500/30">
+                    <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                        <XCircle className="w-8 h-8 text-red-500" />
+                    </div>
+                    <h2 className="text-2xl font-black text-center mb-1">Refuser ce candidat ?</h2>
+                    <p className="text-sm text-muted text-center mb-8">
+                        <strong>{rejectModal.candidate_name}</strong> sera déplacé vers la colonne « Refusés ». Vous pourrez l'y retrouver et le réintégrer si besoin.
+                    </p>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={() => setRejectModal(null)}
+                            className="flex-1 py-4 font-bold uppercase text-xs text-muted hover:text-foreground transition-colors"
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            onClick={handleConfirmReject}
+                            disabled={updatingAppId !== null}
+                            className="flex-1 py-4 font-bold uppercase text-xs bg-red-500 text-white rounded-2xl hover:bg-red-600 transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+                        >
+                            {updatingAppId === rejectModal.id
+                                ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                : <XCircle className="w-4 h-4" />
+                            }
+                            Confirmer le refus
+                        </button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {/* Modal assignation formations employé interne */}
         {selectedEmployee && (
             <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[200] flex items-center justify-center p-6">
-                <div className="glass-panel p-8 rounded-[3rem] w-full max-w-lg shadow-2xl border-violet-500/20 max-h-[90vh] overflow-y-auto">
+                <div ref={employeeRef} role="dialog" aria-modal="true" aria-label="Assigner des formations" tabIndex={-1} className="glass-panel p-8 rounded-panel-lg w-full max-w-lg shadow-2xl border-violet-500/20 max-h-[90vh] overflow-y-auto">
                     <div className="flex items-center justify-between mb-6">
                         <div>
                             <h2 className="text-xl font-black">{selectedEmployee.full_name}</h2>
@@ -776,7 +846,7 @@ export default function KanbanPage() {
 
                     {/* Gaps */}
                     <div className="mb-6">
-                        <p className="text-[10px] font-black uppercase tracking-widest text-muted mb-3">Compétences à développer</p>
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted mb-3">Compétences à développer</p>
                         <div className="space-y-2">
                             {selectedEmployee.gaps.filter(g => g.type === 'skill').map((gap, i) => {
                                 const relatedCourses = lmsCourses.filter(c =>

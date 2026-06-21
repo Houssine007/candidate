@@ -79,7 +79,7 @@ export default function CreateCoursePage() {
           }
           setUser(data.user);
           fetchCategories(token);
-          fetchRHSkills();
+          fetchRHSkills(token);
         }
         setLoading(false);
       })
@@ -106,10 +106,13 @@ export default function CreateCoursePage() {
     }
   };
 
-  // Récupère les compétences depuis la plateforme RH (appel direct service-à-service)
-  const fetchRHSkills = async () => {
+  // Récupère les compétences depuis la plateforme RH (appel direct service-à-service,
+  // authentifié avec le JWT RH partagé).
+  const fetchRHSkills = async (token: string) => {
     try {
-      const res = await fetch(`${RH_API_BASE}/api/skills/?limit=300`);
+      const res = await fetch(`${RH_API_BASE}/api/skills/?limit=300`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       if (res.ok) {
         const data = await res.json();
         setRhSkills(Array.isArray(data) ? data : []);

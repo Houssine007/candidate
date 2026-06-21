@@ -17,6 +17,7 @@ from .internal_hr import (
 )
 from .organization import OrgUnit
 from .job_standard import JobStandard, JobStandardRequirement
+from .workforce_target import WorkforceTarget
 from .permissions import Permission, InternalRole, role_permissions
 
 
@@ -45,6 +46,7 @@ __all__ = [
     "OrgUnit",
     "JobStandard",
     "JobStandardRequirement",
+    "WorkforceTarget",
     "Permission",
     "InternalRole",
     "role_permissions"

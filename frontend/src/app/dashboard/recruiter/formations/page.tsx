@@ -7,13 +7,14 @@ import {
   getEmployees, Employee,
   getLMSCourses, LMSCourse,
   getEmployeeEnrollments, LMSEnrollment,
-  assignCourse
+  assignCourse, lmsLaunchUrl
 } from "@/lib/api"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { RecruiterSidebar } from "@/components/recruiter-sidebar"
 import {
   BookOpen, Users, TrendingUp, LogOut, Building2,
   Briefcase, Plus, Search, Check, Clock, Award,
-  ChevronRight, AlertCircle, X, GraduationCap, Zap
+  ChevronRight, AlertCircle, X, GraduationCap, Zap, ExternalLink
 } from "lucide-react"
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -93,6 +94,13 @@ export default function FormationsPage() {
     }
   }
 
+  // SSO : ouvre le LMS (RecruitPRO Academy) avec le JWT RH, sans ré-auth.
+  // Atterrissage direct sur l'espace instructeur (gestion/création de cours).
+  const handleLaunchLms = () => {
+    if (!token) return
+    window.open(lmsLaunchUrl(token, "/instructor/courses"), "_blank", "noopener")
+  }
+
   const filteredCourses = courses.filter(c =>
     c.title.toLowerCase().includes(courseSearch.toLowerCase()) &&
     c.status === "published"
@@ -113,29 +121,7 @@ export default function FormationsPage() {
   return (
     <div className="min-h-screen bg-background text-foreground flex">
       {/* Sidebar */}
-      <aside className="fixed left-0 top-0 h-full w-64 bg-secondary/5 border-r border-secondary/10 hidden lg:flex flex-col p-6 z-50">
-        <div className="flex items-center gap-3 mb-12">
-          <div className="w-8 h-8 bg-secondary rounded-lg flex items-center justify-center font-black text-primary text-sm">R</div>
-          <span className="font-extrabold tracking-tighter text-lg">RECRUITPRO</span>
-        </div>
-        <nav className="space-y-2 flex-1">
-          <button onClick={() => router.push("/dashboard/recruiter")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-            <TrendingUp className="w-4 h-4" /> Overview
-          </button>
-          <button onClick={() => router.push("/dashboard/recruiter/organization")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-            <Building2 className="w-4 h-4" /> Organisation
-          </button>
-          <button className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm bg-primary/10 text-primary border border-primary/20">
-            <BookOpen className="w-4 h-4" /> Formations
-          </button>
-          <button onClick={() => router.push("/")} className="w-full flex items-center gap-4 p-4 rounded-2xl transition-all font-bold text-sm text-muted hover:text-foreground hover:bg-secondary/10">
-            <Briefcase className="w-4 h-4" /> Voir le Site
-          </button>
-        </nav>
-        <button onClick={() => { logout(); router.push("/") }} className="flex items-center gap-3 p-3 text-muted/60 hover:text-foreground hover:bg-secondary/10 rounded-xl transition-all font-bold text-xs uppercase tracking-widest mt-auto">
-          <LogOut className="w-4 h-4" /> Déconnexion
-        </button>
-      </aside>
+      <RecruiterSidebar active="formations" />
 
       {/* Main */}
       <main className="lg:ml-64 flex-1 p-6 md:p-12">
@@ -182,7 +168,7 @@ export default function FormationsPage() {
           <div className="flex gap-6">
             {/* Employee list */}
             <div className="w-72 flex-shrink-0 space-y-2">
-              <p className="text-[10px] font-black uppercase tracking-widest text-muted/50 mb-3">Employés</p>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted/50 mb-3">Employés</p>
               {employees.length === 0 ? (
                 <div className="text-center py-8 text-muted/40 text-sm">Aucun employé</div>
               ) : (
@@ -246,7 +232,7 @@ export default function FormationsPage() {
                   ) : enrollments.length === 0 ? (
                     <div className="py-12 text-center border-2 border-dashed border-secondary/10 rounded-2xl">
                       <GraduationCap className="w-8 h-8 text-muted/20 mx-auto mb-3" />
-                      <p className="text-xs font-black uppercase tracking-widest text-muted/30">Aucune formation assignée</p>
+                      <p className="text-xs font-bold uppercase tracking-widest text-muted/30">Aucune formation assignée</p>
                       <button
                         onClick={() => setShowAssignModal(true)}
                         disabled={lmsOffline}
@@ -328,7 +314,7 @@ export default function FormationsPage() {
                 {filteredCourses.length === 0 ? (
                   <div className="py-12 text-center border-2 border-dashed border-secondary/10 rounded-2xl">
                     <BookOpen className="w-8 h-8 text-muted/20 mx-auto mb-3" />
-                    <p className="text-xs font-black uppercase tracking-widest text-muted/30">Aucun cours publié</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-muted/30">Aucun cours publié</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -433,13 +419,13 @@ export default function FormationsPage() {
 
 function StatCard({ label, value, icon, color }: { label: string; value: string; icon: React.ReactElement; color: string }) {
   return (
-    <div className="glass-panel p-6 rounded-[2rem] shadow-xl shadow-black/5">
+    <div className="glass-panel p-6 rounded-panel-sm shadow-xl shadow-black/5">
       <div className="flex items-center justify-between mb-4">
         <div className={`p-3 bg-secondary/10 rounded-xl ${color}`}>
           {React.cloneElement(icon, { className: "w-5 h-5" } as any)}
         </div>
       </div>
-      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted mb-1">{label}</p>
+      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted mb-1">{label}</p>
       <p className="text-3xl font-black text-foreground">{value}</p>
     </div>
   )

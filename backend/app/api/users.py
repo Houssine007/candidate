@@ -5,7 +5,7 @@ from ..models.user import User, UserRole
 from ..core.security import hash_password  # Tu peux créer une fonction pour hasher
 from .auth import get_current_user
 
-router = APIRouter(prefix="/users", tags=["Users"])
+router = APIRouter(tags=["Users"])
 
 # Schémas à copier ici ou importer depuis schemas
 from pydantic import BaseModel, EmailStr

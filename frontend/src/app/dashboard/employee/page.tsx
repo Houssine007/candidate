@@ -3,15 +3,24 @@
 import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/lib/auth-store"
-import { getEmployeeMe, getUserPermissions, EmployeeProfile, UserPermissions } from "@/lib/api"
+import {
+  getEmployeeMe, getUserPermissions, getMyProfile,
+  EmployeeProfile, UserPermissions, CandidateProfile
+} from "@/lib/api"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { LogOut, BookOpen, Briefcase, User, Award, AlertCircle } from "lucide-react"
+import { LogOut, BookOpen, Briefcase, User, Award, AlertCircle, Pencil, GraduationCap, FileText } from "lucide-react"
+
+const EDUCATION_LABELS: Record<number, string> = {
+  0: "Sans diplôme", 1: "CAP / BEP", 2: "Bac", 3: "Bac +2", 4: "Bac +3",
+  5: "Bac +5", 6: "Bac +6", 7: "Doctorat", 8: "HDR",
+}
 
 export default function EmployeeDashboard() {
   const router = useRouter()
   const { user, token, logout } = useAuthStore()
   const [employee, setEmployee] = React.useState<EmployeeProfile | null>(null)
   const [permissions, setPermissions] = React.useState<UserPermissions | null>(null)
+  const [profile, setProfile] = React.useState<CandidateProfile | null>(null)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
@@ -29,6 +38,12 @@ export default function EmployeeDashboard() {
         ])
         setEmployee(empData)
         setPermissions(permData)
+        // Profil candidat « emporté » depuis le parcours de recrutement (non bloquant)
+        try {
+          setProfile(await getMyProfile(token))
+        } catch {
+          /* pas de profil candidat lié : on ignore */
+        }
       } catch (err: any) {
         console.error(err)
         setError("Impossible de charger les données. Session expirée ?")
@@ -46,6 +61,14 @@ export default function EmployeeDashboard() {
   }
 
   const canAccessHR = permissions?.permissions.some(p => p.includes("manage") || p.includes("edit"))
+
+  // Compétences à afficher : on privilégie le profil candidat (avec noms) sinon les skills employé
+  const displaySkills = React.useMemo(() => {
+    if (profile?.skills && profile.skills.length > 0) {
+      return profile.skills.map(s => ({ label: s.name || `Skill ${s.skill_id}`, level: s.level, years: s.years_experience }))
+    }
+    return (employee?.skills || []).map(s => ({ label: `Skill ${s.skill_id}`, level: s.level, years: s.years_experience }))
+  }, [profile, employee])
 
   if (loading) {
     return (
@@ -107,11 +130,19 @@ export default function EmployeeDashboard() {
               {employee.years_of_experience}+ ans d'expérience
             </p>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.push("/dashboard/candidate/onboarding")}
+              className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white font-black text-xs rounded-xl hover:bg-primary/90 transition-all"
+            >
+              <Pencil className="w-3 h-3" /> Éditer mon profil
+            </button>
+            <ThemeToggle />
+          </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-          <div className="glass-panel p-6 rounded-[2rem] shadow-xl shadow-black/5">
+          <div className="glass-panel p-6 rounded-panel-sm shadow-xl shadow-black/5">
             <div className="flex items-center gap-4 mb-4">
               <div className="p-3 bg-primary/10 rounded-xl text-primary">
                 <User className="w-5 h-5" />
@@ -123,19 +154,19 @@ export default function EmployeeDashboard() {
             </div>
           </div>
 
-          <div className="glass-panel p-6 rounded-[2rem] shadow-xl shadow-black/5">
+          <div className="glass-panel p-6 rounded-panel-sm shadow-xl shadow-black/5">
             <div className="flex items-center gap-4 mb-4">
               <div className="p-3 bg-blue-500/10 rounded-xl text-blue-500">
                 <Award className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted mb-1">Compétences</p>
-                <p className="text-xl font-black">{employee.skills?.length || 0}</p>
+                <p className="text-xl font-black">{displaySkills.length}</p>
               </div>
             </div>
           </div>
 
-          <div className="glass-panel p-6 rounded-[2rem] shadow-xl shadow-black/5">
+          <div className="glass-panel p-6 rounded-panel-sm shadow-xl shadow-black/5">
             <div className="flex items-center gap-4 mb-4">
               <div className="p-3 bg-amber-500/10 rounded-xl text-amber-500">
                 <BookOpen className="w-5 h-5" />
@@ -150,7 +181,77 @@ export default function EmployeeDashboard() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
-            <section className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5">
+            {/* Profil professionnel emporté depuis la candidature */}
+            <section className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-black flex items-center gap-3">
+                  <FileText className="w-6 h-6 text-primary" /> Mon Profil Professionnel
+                </h2>
+                <button
+                  onClick={() => router.push("/dashboard/candidate/onboarding")}
+                  className="flex items-center gap-2 text-xs font-bold text-primary hover:text-primary/70 transition-colors"
+                >
+                  <Pencil className="w-3 h-3" /> Modifier
+                </button>
+              </div>
+
+              {profile ? (
+                <div className="space-y-6">
+                  {profile.bio && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted mb-2">Bio</p>
+                      <p className="text-sm leading-relaxed text-foreground/90">{profile.bio}</p>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted mb-1 flex items-center gap-2"><Briefcase className="w-3 h-3" /> Expérience</p>
+                      <p className="font-bold">{profile.years_of_experience ?? employee.years_of_experience ?? 0} ans</p>
+                    </div>
+                    <div className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-muted mb-1 flex items-center gap-2"><GraduationCap className="w-3 h-3" /> Formation</p>
+                      <p className="font-bold">{EDUCATION_LABELS[profile.education_level ?? employee.education_level ?? 0] || `Niveau ${profile.education_level}`}</p>
+                    </div>
+                  </div>
+                  {profile.experience_detail && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted mb-2">Parcours</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{profile.experience_detail}</p>
+                    </div>
+                  )}
+                  {profile.formations && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted mb-2">Diplômes & Formations</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{profile.formations}</p>
+                    </div>
+                  )}
+                  {profile.certifications && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted mb-2">Certifications</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80">{profile.certifications}</p>
+                    </div>
+                  )}
+                  {profile.cv_url && (
+                    <a href={profile.cv_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline">
+                      <FileText className="w-3 h-3" /> Voir mon CV
+                    </a>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-10 opacity-60">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-muted/40" />
+                  <p className="text-sm font-bold">Votre profil professionnel est vide</p>
+                  <button
+                    onClick={() => router.push("/dashboard/candidate/onboarding")}
+                    className="mt-4 px-4 py-2 bg-primary text-white text-xs font-black rounded-xl hover:bg-primary/90 transition-all"
+                  >
+                    Compléter mon profil
+                  </button>
+                </div>
+              )}
+            </section>
+
+            <section className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5">
               <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
                 <BookOpen className="w-6 h-6 text-primary" /> Mes Formations
               </h2>
@@ -160,29 +261,18 @@ export default function EmployeeDashboard() {
                 <p className="text-[10px] text-muted/60 mt-2">Votre manager vous assignera des formations</p>
               </div>
             </section>
-
-            <section className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5">
-              <h2 className="text-2xl font-black mb-6 flex items-center gap-3">
-                <Briefcase className="w-6 h-6 text-blue-500" /> Mobilité Interne
-              </h2>
-              <div className="text-center py-10 opacity-50">
-                <Briefcase className="w-12 h-12 mx-auto mb-4 text-muted/40" />
-                <p className="text-sm font-bold">Aucune opportunité disponible</p>
-                <p className="text-[10px] text-muted/60 mt-2">De nouveaux postes seront affichés prochainement</p>
-              </div>
-            </section>
           </div>
 
           <div className="space-y-8">
-            <section className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5">
+            <section className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5">
               <h2 className="text-xl font-black mb-4 flex items-center gap-3">
                 <Award className="w-5 h-5 text-primary" /> Compétences
               </h2>
               <div className="space-y-4">
-                {employee.skills && employee.skills.length > 0 ? (
-                  employee.skills.map((skill, idx) => (
+                {displaySkills.length > 0 ? (
+                  displaySkills.map((skill, idx) => (
                     <div key={idx} className="p-4 bg-secondary/5 rounded-2xl border border-secondary/10">
-                      <p className="text-sm font-bold text-foreground">Skill {skill.skill_id}</p>
+                      <p className="text-sm font-bold text-foreground">{skill.label}</p>
                       <div className="flex items-center gap-2 mt-2">
                         <div className="flex-1 h-2 bg-secondary/20 rounded-full">
                           <div
@@ -192,7 +282,7 @@ export default function EmployeeDashboard() {
                         </div>
                         <span className="text-[10px] font-bold text-primary">Niv. {skill.level}</span>
                       </div>
-                      <p className="text-[10px] text-muted/60 mt-1">{skill.years_experience} ans</p>
+                      <p className="text-[10px] text-muted/60 mt-1">{skill.years} ans</p>
                     </div>
                   ))
                 ) : (
@@ -203,7 +293,7 @@ export default function EmployeeDashboard() {
               </div>
             </section>
 
-            <section className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5">
+            <section className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5">
               <h2 className="text-xl font-black mb-4">Infos Profil</h2>
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between">
@@ -212,7 +302,7 @@ export default function EmployeeDashboard() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted">Téléphone</span>
-                  <span className="font-bold">{employee.phone || "—"}</span>
+                  <span className="font-bold">{employee.phone || profile?.phone || "—"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted">Poste</span>

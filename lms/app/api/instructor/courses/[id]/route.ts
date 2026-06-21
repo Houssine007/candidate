@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
-import jwt from 'jsonwebtoken';
+import { authorizeInstructor } from '@/lib/auth';
 
 // Import models in correct order to ensure schemas are registered
 import Category from '@/models/Category';
@@ -19,15 +19,9 @@ export async function GET(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     // Handle both Promise and direct params for Next.js compatibility
     const resolvedParams = params instanceof Promise ? await params : params;
@@ -39,7 +33,7 @@ export async function GET(
     void Section;
     void Quiz;
 
-    const course = await Course.findOne({ _id: courseId, instructorId: decoded.userId })
+    const course = await Course.findOne({ _id: courseId, instructorId: user.id })
       .populate('categoryId', 'name')
       .lean();
     
@@ -87,15 +81,9 @@ export async function PUT(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     // Handle both Promise and direct params for Next.js compatibility
     const resolvedParams = params instanceof Promise ? await params : params;
@@ -106,7 +94,7 @@ export async function PUT(
 
     // Verify category if provided
     if (categoryId) {
-      const category = await Category.findOne({ _id: categoryId, instructorId: decoded.userId });
+      const category = await Category.findOne({ _id: categoryId, instructorId: user.id });
       if (!category) {
         return NextResponse.json({ error: 'Category not found' }, { status: 404 });
       }
@@ -121,7 +109,7 @@ export async function PUT(
     if (status) updateData.status = status;
 
     const course = await Course.findOneAndUpdate(
-      { _id: courseId, instructorId: decoded.userId },
+      { _id: courseId, instructorId: user.id },
       updateData,
       { new: true, runValidators: true }
     );
@@ -145,21 +133,15 @@ export async function DELETE(
   try {
     await connectDB();
 
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string; role: string };
-    if (decoded.role !== 'instructor') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const auth = await authorizeInstructor(request);
+    if (!auth.ok) return auth.res;
+    const user = auth.user;
 
     // Handle both Promise and direct params for Next.js compatibility
     const resolvedParams = params instanceof Promise ? await params : params;
     const courseId = resolvedParams.id;
 
-    const course = await Course.findOneAndDelete({ _id: courseId, instructorId: decoded.userId });
+    const course = await Course.findOneAndDelete({ _id: courseId, instructorId: user.id });
     if (!course) {
       return NextResponse.json({ error: 'Course not found' }, { status: 404 });
     }

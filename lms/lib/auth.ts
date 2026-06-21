@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
 // Même secret JWT que la plateforme RH (FastAPI)
@@ -52,4 +52,29 @@ export async function requireInstructor(req: NextRequest): Promise<LMSUser> {
   const user = await requireAuth(req);
   if (!user.is_instructor && user.role !== 'ADMIN') throw new Error('Forbidden');
   return user;
+}
+
+// Vérifie qu'un instructeur est autorisé (flag is_instructor ou ADMIN système)
+// et renvoie soit l'utilisateur, soit une réponse d'erreur prête à retourner.
+// Source de vérité unique pour toutes les routes /api/instructor/* — remplace
+// les vérifications JWT manuelles (jsonwebtoken + role === 'instructor').
+export type InstructorAuth =
+  | { ok: true; user: LMSUser }
+  | { ok: false; res: NextResponse };
+
+export async function authorizeInstructor(req: NextRequest): Promise<InstructorAuth> {
+  const user = await getAuthUser(req);
+  if (!user) {
+    return { ok: false, res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  }
+  if (!user.is_instructor && user.role !== 'ADMIN') {
+    return { ok: false, res: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
+  }
+  return { ok: true, user };
+}
+
+// True si l'utilisateur peut accéder à toutes les ressources (pas de filtrage
+// par propriétaire). Un ADMIN voit tout ; un instructeur ne voit que les siennes.
+export function isAdmin(user: LMSUser): boolean {
+  return user.role === 'ADMIN';
 }

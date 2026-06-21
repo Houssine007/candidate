@@ -26,6 +26,7 @@ class JobStandardRequirement(Base):
     skill_id = Column(Integer, ForeignKey("skills.id"), primary_key=True)
     min_level = Column(Integer, default=1) # Niveau requis (1-4)
     is_mandatory = Column(Boolean, default=True)
+    is_emergent = Column(Boolean, default=False)  # compétence d'avenir (issue de ROME, GPEC prévisionnelle)
 
     # Relations
     job_standard = relationship("JobStandard", back_populates="skills_requirements")

@@ -10,10 +10,13 @@ import {
     getSkills,
     updateCandidateOnboarding,
     searchSkills,
+    getProfileAnalysis,
     Application,
     CandidateProfile,
     Skill,
-    CandidateSkill
+    CandidateSkill,
+    ProfileAnalysis,
+    ProfileDomainSuggestion
 } from "@/lib/api"
 import { ThemeToggle } from "@/components/theme-toggle"
 import {
@@ -24,6 +27,7 @@ import {
     CheckCircle2,
     XCircle,
     ChevronRight,
+    ChevronDown,
     User,
     LogOut,
     Search,
@@ -37,7 +41,10 @@ import {
     FileText,
     FileUp,
     Loader2,
-    Award
+    Award,
+    Sparkles,
+    BookOpen,
+    Target
 } from "lucide-react"
 import { uploadCV } from "@/lib/api"
 
@@ -50,6 +57,9 @@ export default function CandidateDashboard() {
     const [loading, setLoading] = React.useState(true)
     const [showProfileModal, setShowProfileModal] = React.useState(false)
     const [isSaving, setIsSaving] = React.useState(false)
+    const [profileAnalysis, setProfileAnalysis] = React.useState<ProfileAnalysis | null>(null)
+    const [analysisOpen, setAnalysisOpen] = React.useState(false)
+    const [analysisLoading, setAnalysisLoading] = React.useState(false)
     const [isUploading, setIsUploading] = React.useState(false)
     const [skillSearch, setSkillSearch] = React.useState("")
     const [skillResults, setSkillResults] = React.useState<any[]>([])
@@ -178,6 +188,20 @@ export default function CandidateDashboard() {
         setSkillResults([])
     }
 
+    const handleLoadAnalysis = async () => {
+        if (!token || profileAnalysis) { setAnalysisOpen(o => !o); return }
+        setAnalysisOpen(true)
+        setAnalysisLoading(true)
+        try {
+            const data = await getProfileAnalysis(token)
+            setProfileAnalysis(data)
+        } catch {
+            setProfileAnalysis({ domains: [], has_rome_data: false })
+        } finally {
+            setAnalysisLoading(false)
+        }
+    }
+
     const removeSkill = (skillId: number) => {
         const skills = (formProfile.skills || []).filter(s => s.skill_id !== skillId)
         setFormProfile({ ...formProfile, skills })
@@ -295,7 +319,7 @@ export default function CandidateDashboard() {
 
                 {/* Stats Grid */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
-                    <div className="glass-panel p-8 rounded-[2rem] relative overflow-hidden group">
+                    <div className="glass-panel p-8 rounded-panel-sm relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform">
                             <Briefcase className="w-12 h-12" />
                         </div>
@@ -303,7 +327,7 @@ export default function CandidateDashboard() {
                         <p className="text-4xl font-black">{activeApps}</p>
                     </div>
 
-                    <div className="glass-panel p-8 rounded-[2rem] relative overflow-hidden group">
+                    <div className="glass-panel p-8 rounded-panel-sm relative overflow-hidden group">
                         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform text-primary">
                             <TrendingUp className="w-12 h-12" />
                         </div>
@@ -311,7 +335,7 @@ export default function CandidateDashboard() {
                         <p className="text-4xl font-black text-primary">{averageMatch}%</p>
                     </div>
 
-                    <div className="glass-panel p-8 rounded-[2rem] relative overflow-hidden group bg-primary/5 border-primary/20">
+                    <div className="glass-panel p-8 rounded-panel-sm relative overflow-hidden group bg-primary/5 border-primary/20">
                         <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:scale-110 transition-transform text-primary">
                             <Zap className="w-12 h-12" />
                         </div>
@@ -325,7 +349,7 @@ export default function CandidateDashboard() {
 
                 <div className="space-y-6">
                     {applications.length === 0 ? (
-                        <div className="py-20 flex flex-col items-center justify-center glass-panel rounded-[3rem] border-dashed">
+                        <div className="py-20 flex flex-col items-center justify-center glass-panel rounded-panel-lg border-dashed">
                             <Search className="w-12 h-12 text-muted/20 mb-4" />
                             <p className="text-muted font-bold">Aucune candidature pour le moment.</p>
                             <button onClick={() => router.push("/")} className="mt-4 text-primary font-black uppercase text-[10px] tracking-widest border-b-2 border-primary/20 hover:border-primary transition-all">
@@ -334,7 +358,7 @@ export default function CandidateDashboard() {
                         </div>
                     ) : (
                         applications.map((app) => (
-                            <div key={app.id} className="glass-panel p-6 md:p-10 rounded-[2.5rem] hover:border-primary/30 transition-all group shadow-xl shadow-black/5">
+                            <div key={app.id} className="glass-panel p-6 md:p-10 rounded-panel hover:border-primary/30 transition-all group shadow-xl shadow-black/5">
                                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                                     <div className="flex-1">
                                         <div className="flex items-center gap-4 mb-4">
@@ -391,7 +415,7 @@ export default function CandidateDashboard() {
             {/* Profile Edition Modal */}
             {showProfileModal && (
                 <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-background/80 backdrop-blur-xl animate-in fade-in duration-300">
-                    <div className="glass-panel w-full max-w-5xl max-h-[90vh] rounded-[3rem] shadow-2xl flex flex-col overflow-hidden relative border-primary/20">
+                    <div className="glass-panel w-full max-w-5xl max-h-[90vh] rounded-panel-lg shadow-2xl flex flex-col overflow-hidden relative border-primary/20">
 
                         <div className="p-8 md:p-12 flex items-center justify-between border-b border-secondary/10">
                             <div>
@@ -415,7 +439,7 @@ export default function CandidateDashboard() {
                                     </h3>
                                     
                                     {/* CV Upload Section */}
-                                    <div className="mb-10 p-6 bg-primary/5 border border-dashed border-primary/30 rounded-[2rem] flex flex-col items-center text-center group">
+                                    <div className="mb-10 p-6 bg-primary/5 border border-dashed border-primary/30 rounded-panel-sm flex flex-col items-center text-center group">
                                         <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                                             {isUploading ? (
                                                 <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
@@ -551,7 +575,58 @@ export default function CandidateDashboard() {
                             </div>
                         </div>
 
-                        {/* Modal Footer */}
+                        {/* ── Analyse de profil ─────────────────────────────────── */}
+                {profile && (
+                    <div className="mt-12">
+                        <button
+                            onClick={handleLoadAnalysis}
+                            className="w-full flex items-center justify-between p-6 glass-panel rounded-panel-sm hover:border-primary/30 transition-all group"
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
+                                    <Sparkles className="w-5 h-5 text-primary" />
+                                </div>
+                                <div className="text-left">
+                                    <p className="font-black text-sm text-foreground">Analyse de votre profil</p>
+                                    <p className="text-[10px] text-muted font-medium">Découvrez vos points forts et les compétences à développer</p>
+                                </div>
+                            </div>
+                            <ChevronDown className={`w-5 h-5 text-muted transition-transform ${analysisOpen ? "rotate-180" : ""}`} />
+                        </button>
+
+                        {analysisOpen && (
+                            <div className="mt-4 space-y-4">
+                                {analysisLoading && (
+                                    <div className="flex items-center justify-center py-12">
+                                        <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                                    </div>
+                                )}
+
+                                {!analysisLoading && profileAnalysis && !profileAnalysis.has_rome_data && (
+                                    <div className="glass-panel rounded-panel-sm p-8 text-center">
+                                        <Target className="w-10 h-10 text-muted/30 mx-auto mb-3" />
+                                        <p className="font-bold text-sm text-foreground mb-1">Profil en cours de construction</p>
+                                        <p className="text-[11px] text-muted">
+                                            Complétez votre profil avec vos compétences pour obtenir des suggestions personnalisées.
+                                        </p>
+                                        <button
+                                            onClick={() => router.push("/dashboard/candidate/onboarding")}
+                                            className="mt-4 px-6 py-2.5 bg-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest"
+                                        >
+                                            Compléter mon profil
+                                        </button>
+                                    </div>
+                                )}
+
+                                {!analysisLoading && profileAnalysis?.domains.map((domain, i) => (
+                                    <DomainCard key={i} domain={domain} onOpenOnboarding={() => router.push("/dashboard/candidate/onboarding")} />
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* Modal Footer */}
                         <div className="p-8 md:p-12 border-t border-secondary/10 flex items-center justify-between bg-secondary/5">
                             <p className="text-[10px] font-medium text-muted max-w-md italic">
                                 * Sauvegardez vos modifications pour que vos scores de matching soient recalculés sur toutes vos candidatures actives.
@@ -574,6 +649,78 @@ export default function CandidateDashboard() {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+const FIT_CONFIG = {
+    "fort":         { label: "Domaine fort",      color: "text-emerald-500", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    "potentiel":    { label: "Potentiel",          color: "text-amber-500",   bg: "bg-amber-500/10",   border: "border-amber-500/20"   },
+    "à découvrir":  { label: "À développer",       color: "text-blue-500",    bg: "bg-blue-500/10",    border: "border-blue-500/20"    },
+}
+
+function DomainCard({ domain, onOpenOnboarding }: { domain: ProfileDomainSuggestion; onOpenOnboarding: () => void }) {
+    const cfg = FIT_CONFIG[domain.fit_level] ?? FIT_CONFIG["potentiel"]
+    const [open, setOpen] = React.useState(domain.fit_level !== "à découvrir")
+
+    return (
+        <div className={`glass-panel rounded-panel-sm overflow-hidden border ${cfg.border}`}>
+            <button
+                onClick={() => setOpen(o => !o)}
+                className="w-full flex items-center justify-between p-6 hover:bg-secondary/5 transition-all"
+            >
+                <div className="flex items-center gap-4">
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${cfg.bg} ${cfg.color}`}>
+                        {cfg.label}
+                    </div>
+                    <span className="font-black text-sm text-foreground">{domain.label}</span>
+                    <span className="text-[10px] text-muted font-medium">
+                        {domain.owned_count} / {domain.typical_count} compétences
+                    </span>
+                </div>
+                <ChevronDown className={`w-4 h-4 text-muted transition-transform ${open ? "rotate-180" : ""}`} />
+            </button>
+
+            {open && (
+                <div className="px-6 pb-6 grid md:grid-cols-2 gap-6">
+                    {/* Compétences acquises */}
+                    <div>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-muted mb-3 flex items-center gap-2">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Vous maîtrisez
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            {domain.owned_skills.map((s, i) => (
+                                <span key={i} className="px-3 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full text-[11px] font-bold flex items-center gap-1.5">
+                                    {s.name}
+                                    <span className="opacity-60 text-[9px]">niv.{s.level}</span>
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Suggestions */}
+                    {domain.suggested_skills.length > 0 && (
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted mb-3 flex items-center gap-2">
+                                <BookOpen className="w-3.5 h-3.5 text-primary" /> À développer
+                            </p>
+                            <div className="flex flex-wrap gap-2 mb-4">
+                                {domain.suggested_skills.map((s, i) => (
+                                    <span key={i} className="px-3 py-1 bg-primary/8 border border-primary/20 text-primary rounded-full text-[11px] font-bold">
+                                        + {s}
+                                    </span>
+                                ))}
+                            </div>
+                            <button
+                                onClick={onOpenOnboarding}
+                                className="text-[10px] font-black uppercase tracking-widest text-primary border-b border-primary/30 hover:border-primary transition-all"
+                            >
+                                Ajouter ces compétences à mon profil →
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

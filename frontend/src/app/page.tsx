@@ -134,7 +134,7 @@ export default function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               {jobs.length > 0 ? (
                 jobs.map((job) => (
-                  <div key={job.id} className="glass-panel p-8 rounded-[2.5rem] group hover:border-primary/50 transition-all active:scale-[0.98] shadow-2xl shadow-black/[0.03] dark:shadow-black/20 relative overflow-hidden">
+                  <div key={job.id} className="glass-panel p-8 rounded-panel group hover:border-primary/50 transition-all active:scale-[0.98] shadow-2xl shadow-black/[0.03] dark:shadow-black/20 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/20 transition-all" />
 
                     <div className="flex justify-between items-start mb-8 relative">
@@ -202,7 +202,7 @@ export default function Home() {
                   </div>
                 ))
               ) : (
-                <div className="col-span-full py-32 text-center glass-panel rounded-[3rem] border-dashed border-2 border-secondary/20">
+                <div className="col-span-full py-32 text-center glass-panel rounded-panel-lg border-dashed border-2 border-secondary/20">
                   <Briefcase className="w-12 h-12 text-muted/20 mx-auto mb-4" />
                   <p className="text-muted font-black uppercase tracking-[0.3em] text-sm">Chargement du Job Board...</p>
                 </div>
@@ -222,7 +222,7 @@ export default function Home() {
 
             <div className="grid grid-cols-1 md:grid-cols-4 grid-rows-2 gap-8 h-auto md:h-[700px]">
               {/* Feature 1 */}
-              <div className="md:col-span-2 md:row-span-2 glass-panel p-12 rounded-[3.5rem] flex flex-col justify-end relative overflow-hidden group">
+              <div className="md:col-span-2 md:row-span-2 glass-panel p-12 rounded-panel-xl flex flex-col justify-end relative overflow-hidden group">
                 <div className="absolute top-12 right-12 w-48 h-48 bg-primary/10 blur-[80px] rounded-full group-hover:bg-primary/30 transition-all duration-700" />
                 <div className="w-16 h-16 bg-primary/10 rounded-3xl flex items-center justify-center mb-8 border border-primary/20">
                   <Target className="w-8 h-8 text-primary" />
@@ -234,7 +234,7 @@ export default function Home() {
               </div>
 
               {/* Feature 2 */}
-              <div className="md:col-span-2 glass-panel p-12 rounded-[3.5rem] flex items-center justify-between group overflow-hidden">
+              <div className="md:col-span-2 glass-panel p-12 rounded-panel-xl flex items-center justify-between group overflow-hidden">
                 <div className="flex-1">
                   <div className="w-12 h-12 bg-secondary/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                     <Zap className="w-6 h-6 text-amber-500" />
@@ -250,13 +250,13 @@ export default function Home() {
               </div>
 
               {/* Feature 3 */}
-              <div className="glass-panel p-12 rounded-[3.5rem] flex flex-col justify-center text-center group hover:bg-primary/5 transition-all">
+              <div className="glass-panel p-12 rounded-panel-xl flex flex-col justify-center text-center group hover:bg-primary/5 transition-all">
                 <div className="text-6xl font-black text-primary mb-3 group-hover:scale-110 transition-transform">x3</div>
                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-muted">Vitesse d'embauche</p>
               </div>
 
               {/* Feature 4 */}
-              <div className="glass-panel p-12 rounded-[3.5rem] flex flex-col items-center justify-center group bg-gradient-to-br from-secondary/80 to-secondary dark:from-[#112239] dark:to-secondary">
+              <div className="glass-panel p-12 rounded-panel-xl flex flex-col items-center justify-center group bg-gradient-to-br from-secondary/80 to-secondary dark:from-[#112239] dark:to-secondary">
                 <div className="w-full h-3 bg-secondary/30 rounded-full overflow-hidden mb-6 border border-white/5">
                   <div className="w-[85%] h-full bg-primary shadow-[0_0_20px_#9fd3c7]" />
                 </div>
@@ -269,7 +269,7 @@ export default function Home() {
         {/* CTA Section */}
         <section className="py-40 px-6">
           <div className="container mx-auto">
-            <div className="glass-panel p-20 rounded-[4rem] text-center bg-gradient-to-t from-secondary to-secondary/80 border-primary/20 dark:from-[#0c1c32] dark:to-[#142d4c] relative overflow-hidden">
+            <div className="glass-panel p-20 rounded-panel-2xl text-center bg-gradient-to-t from-secondary to-secondary/80 border-primary/20 dark:from-[#0c1c32] dark:to-[#142d4c] relative overflow-hidden">
               <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity" />
               <h2 className="text-5xl md:text-7xl font-black mb-12 tracking-tighter text-foreground relative z-10">Rejoignez le futur<br />du recrutement.</h2>
               <Link

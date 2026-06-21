@@ -103,7 +103,7 @@ export default function MobilityPage() {
         )}
 
         {positions.length === 0 ? (
-          <div className="text-center py-20 border-2 border-dashed border-secondary/10 rounded-[2.5rem]">
+          <div className="text-center py-20 border-2 border-dashed border-secondary/10 rounded-panel">
             <Briefcase className="w-16 h-16 text-muted/20 mx-auto mb-4" />
             <h2 className="text-lg font-black mb-2">Aucune opportunité pour le moment</h2>
             <p className="text-muted font-medium">Revenez bientôt pour découvrir de nouveaux postes</p>
@@ -114,7 +114,7 @@ export default function MobilityPage() {
               const applied = hasApplied(position.id)
               const appStatus = getApplicationStatus(position.id)
               return (
-                <div key={position.id} className="glass-panel p-8 rounded-[2.5rem] shadow-xl shadow-black/5 hover:shadow-xl hover:shadow-primary/10 transition-all">
+                <div key={position.id} className="glass-panel p-8 rounded-panel shadow-xl shadow-black/5 hover:shadow-xl hover:shadow-primary/10 transition-all">
                   <div className="flex flex-col md:flex-row justify-between gap-6 items-start md:items-center">
                     <div className="flex-1">
                       <h3 className="text-2xl font-black tracking-tight mb-3">{position.title}</h3>
@@ -186,7 +186,7 @@ export default function MobilityPage() {
 
       {showMotivationModal && selectedPosition && (
         <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-          <div className="glass-panel p-8 rounded-[3rem] w-full max-w-md shadow-2xl">
+          <div className="glass-panel p-8 rounded-panel-lg w-full max-w-md shadow-2xl">
             <h2 className="text-2xl font-black mb-4">Postuler à {selectedPosition.title}</h2>
             <textarea
               value={motivation}

@@ -4,12 +4,13 @@ import { requireAuth, requireRole } from '@/lib/auth';
 import Enrollment from '@/models/Enrollment';
 
 // PATCH /api/enrollments/[id] — mise à jour du statut
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> | { id: string } }) {
   try {
     const user = await requireAuth(req);
     await connectDB();
 
-    const enrollment = await Enrollment.findById(params.id);
+    const { id } = params instanceof Promise ? await params : params;
+    const enrollment = await Enrollment.findById(id);
     if (!enrollment) return NextResponse.json({ error: 'Enrollment non trouvé' }, { status: 404 });
 
     // L'employé ne peut modifier que son propre enrollment
@@ -45,12 +46,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 }
 
 // GET /api/enrollments/[id] — détail d'un enrollment
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> | { id: string } }) {
   try {
     const user = await requireAuth(req);
     await connectDB();
 
-    const enrollment = await Enrollment.findById(params.id).populate('courseId');
+    const { id } = params instanceof Promise ? await params : params;
+    const enrollment = await Enrollment.findById(id).populate('courseId');
     if (!enrollment) return NextResponse.json({ error: 'Enrollment non trouvé' }, { status: 404 });
 
     if (enrollment.employeeId !== user.id && !['ADMIN', 'RECRUITER'].includes(user.role)) {

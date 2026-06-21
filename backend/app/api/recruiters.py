@@ -5,7 +5,7 @@ from ..models.recruiter import Recruiter
 from ..models.user import User
 from .auth import get_current_user
 
-router = APIRouter(prefix="/recruiters", tags=["Recruiters"])
+router = APIRouter(tags=["Recruiters"])
 
 # Schémas (les mêmes que ci-dessus)
 # Copie ici directement ou garde-les si déjà dans ce fichier
