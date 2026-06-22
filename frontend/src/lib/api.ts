@@ -26,9 +26,16 @@ export interface Job {
   salary_max?: number
   min_years_experience: number
   min_education_level: number
+  contract_type?: string
+  start_date?: string
+  benefits?: string[]
   recruiter_id?: number
   requirements: SkillRequirement[]
   matching_candidates: MatchResult[]
+  is_active: boolean
+  status_counts?: Record<string, number>
+  match_score?: number
+  created_at?: string
 }
 
 export type Recommendation = "STRONG_FIT" | "POTENTIAL" | "WEAK_FIT"
@@ -233,8 +240,8 @@ export async function getLatestJobs(limit = 6): Promise<Job[]> {
   return jobs.map((j) => ({ ...j, matching_candidates: j.matching_candidates ?? [] }))
 }
 
-export async function getJob(jobId: number): Promise<Job> {
-  const job = await apiFetch<Job>(`/api/jobs/${jobId}`)
+export async function getJob(jobId: number, token?: string): Promise<Job> {
+  const job = await apiFetch<Job>(`/api/jobs/${jobId}`, {}, token)
   return { ...job, matching_candidates: job.matching_candidates ?? [] }
 }
 
@@ -243,14 +250,22 @@ export async function getRecruiterJobsWithMatches(token: string): Promise<Job[]>
   const enriched = await Promise.all(
     jobs.map(async (job) => {
       try {
-        const data = await apiFetch<Job & { matching_candidates: MatchResult[] }>(`/api/jobs/${job.id}/matches`, {}, token)
-        return { ...job, matching_candidates: data.matching_candidates ?? [] }
+        const data = await apiFetch<Job & { matching_candidates: MatchResult[]; status_counts: Record<string, number> }>(`/api/jobs/${job.id}/matches`, {}, token)
+        return { ...job, matching_candidates: data.matching_candidates ?? [], status_counts: data.status_counts }
       } catch {
         return { ...job, matching_candidates: [] }
       }
     })
   )
   return enriched
+}
+
+export async function archiveJob(jobId: number, token: string): Promise<{ id: number; is_active: boolean }> {
+  return apiFetch<{ id: number; is_active: boolean }>(`/api/jobs/${jobId}/archive`, { method: "PATCH" }, token)
+}
+
+export async function updateJob(jobId: number, jobData: any, token: string): Promise<Job> {
+  return apiFetch<Job>(`/api/jobs/${jobId}`, { method: "PUT", body: JSON.stringify(jobData) }, token)
 }
 
 export interface InternalMatch {

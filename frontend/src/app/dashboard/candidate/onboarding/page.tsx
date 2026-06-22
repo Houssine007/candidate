@@ -195,15 +195,18 @@ export default function OnboardingPage() {
       const updated = await uploadCV(e.target.files[0], token);
       setFormData(prev => ({
         ...prev,
-        ...updated,
-        skills: updated.skills?.length ? updated.skills : prev.skills,
-        first_name: updated.first_name || prev.first_name,
-        last_name: updated.last_name || prev.last_name,
-        phone: (updated as any).phone || prev.phone,
-        bio: updated.bio || prev.bio,
-        experience_detail: (updated as any).experience_detail || prev.experience_detail,
-        formations: (updated as any).formations || prev.formations,
-        certifications: (updated as any).certifications || prev.certifications,
+        first_name: updated.first_name || prev.first_name || "",
+        last_name: updated.last_name || prev.last_name || "",
+        phone: (updated as any).phone || prev.phone || "",
+        job_title: (updated as any).job_title || prev.job_title || "",
+        location: (updated as any).location || prev.location || "",
+        bio: updated.bio || prev.bio || "",
+        experience_detail: (updated as any).experience_detail || prev.experience_detail || "",
+        formations: (updated as any).formations || prev.formations || "",
+        certifications: (updated as any).certifications || prev.certifications || "",
+        education_level: updated.education_level ?? prev.education_level ?? 0,
+        years_of_experience: updated.years_of_experience ?? prev.years_of_experience ?? 0,
+        skills: updated.skills?.length ? updated.skills.map((s: any) => ({ ...s, source: "Extrait CV" })) : prev.skills,
       }));
       setCvUploaded(true);
     } catch (err) { console.error(err); }

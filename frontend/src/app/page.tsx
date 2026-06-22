@@ -138,9 +138,9 @@ export default function Home() {
                     <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:bg-primary/20 transition-all" />
 
                     <div className="flex justify-between items-start mb-8 relative">
-                      <div className="w-14 h-14 bg-secondary/10 rounded-2xl flex items-center justify-center font-black text-primary text-2xl border border-secondary/20 transition-all group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:scale-110">
+                      <Link href={`/jobs/${job.id}`} className="w-14 h-14 bg-secondary/10 rounded-2xl flex items-center justify-center font-black text-primary text-2xl border border-secondary/20 transition-all group-hover:bg-primary/10 group-hover:border-primary/30 group-hover:scale-110">
                         {job.company?.[0] || "R"}
-                      </div>
+                      </Link>
                       <div className="flex flex-col items-end gap-1">
                         <span className="px-3 py-1 bg-primary/10 text-primary text-[10px] font-black uppercase rounded-lg border border-primary/20">
                           CDI / Full-time
@@ -149,7 +149,11 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <h3 className="text-2xl font-black mb-3 group-hover:text-primary transition-colors line-clamp-1 text-foreground leading-tight">{job.title}</h3>
+                    <Link href={`/jobs/${job.id}`}>
+                      <h3 className="text-2xl font-black mb-3 group-hover:text-primary transition-colors line-clamp-1 text-foreground leading-tight cursor-pointer">
+                        {job.title}
+                      </h3>
+                    </Link>
                     <p className="text-muted text-sm mb-6 flex items-center gap-2 font-medium">
                       <span className="w-1.5 h-1.5 rounded-full bg-primary" /> {job.company}
                       <span className="w-1 h-1 rounded-full bg-muted/30" /> {job.location}

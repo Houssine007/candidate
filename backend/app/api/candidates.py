@@ -500,9 +500,35 @@ async def upload_cv(
                 candidate.years_of_experience = float(ai_data.get("years_of_experience"))
             if ai_data.get("education_level"):
                 candidate.education_level = int(ai_data.get("education_level"))
+            if ai_data.get("formations"):
+                candidate.formations = ai_data.get("formations")
+            if ai_data.get("certifications"):
+                candidate.certifications = ai_data.get("certifications")
             
-            # TODO: Mapper les skills extraits vers CandidateSkill
-            # Pour l'instant on se concentre sur les métadonnées principales
+            # --- Nouveau : Mapper les skills extraits vers CandidateSkill ---
+            extracted_skills = ai_data.get("skills", [])
+            if extracted_skills:
+                # Supprimer les anciens skills si on veut repartir d'une base propre suite au CV
+                db.query(CandidateSkill).filter(CandidateSkill.candidate_id == candidate.id).delete()
+                
+                for s_data in extracted_skills:
+                    name = s_data.get("name")
+                    if not name: continue
+                    
+                    # Trouver ou créer le skill dans le référentiel
+                    db_skill = db.query(Skill).filter(Skill.name.ilike(name)).first()
+                    if not db_skill:
+                        db_skill = Skill(name=name, category="extracted")
+                        db.add(db_skill)
+                        db.flush()
+                    
+                    # Lier au candidat
+                    db.add(CandidateSkill(
+                        candidate_id=candidate.id,
+                        skill_id=db_skill.id,
+                        level=s_data.get("level", 1),
+                        years_experience=s_data.get("years_experience", 0.0)
+                    ))
 
     db.commit()
     db.refresh(candidate)

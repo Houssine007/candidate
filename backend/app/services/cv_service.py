@@ -1,51 +1,29 @@
-import fitz  # PyMuPDF
 import json
-import re
-from typing import Dict, Any
-from openai import AsyncOpenAI
-from ..core.config import settings
+from groq import Groq
+from app.core.config import settings
+import fitz  # PyMuPDF
 
-def extract_text_from_pdf(file_path: str) -> str:
-    text = ""
+# Initialisation Groq
+client = Groq(api_key=settings.GROQ_API_KEY)
+
+def extract_text_from_pdf(pdf_path: str) -> str:
+    """Extraire le texte brut d'un fichier PDF."""
     try:
-        with fitz.open(file_path) as doc:
-            for page in doc:
-                text += page.get_text()
+        doc = fitz.open(pdf_path)
+        text = ""
+        for page in doc:
+            text += page.get_text()
+        return text
     except Exception as e:
-        print(f"Erreur extraction PDF: {str(e)}")
-    return text
+        print(f"Erreur extraction PDF: {e}")
+        return ""
 
-def heuristic_parse_cv(text: str) -> Dict[str, Any]:
-    data = {
-        "first_name": "", "last_name": "", "email": "", "phone": "",
-        "years_of_experience": 0.0, "education_level": 0,
-        "skills": [], "bio_summary": "Extrait brut (IA non disponible)", "experience_detail": ""
-    }
-    emails = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', text)
-    if emails: data["email"] = emails[0]
-    phones = re.findall(r'(\+?\d[\d\s-]{8,}\d)', text)
-    if phones: data["phone"] = phones[0]
-    lines = [l.strip() for l in text.split('\n') if l.strip()]
-    if lines:
-        name_parts = lines[0].split()
-        if len(name_parts) >= 2:
-            data["first_name"] = name_parts[0]
-            data["last_name"] = " ".join(name_parts[1:])
-    exp_match = re.search(r'(\d+)[\s-]*(ans|year)', text, re.IGNORECASE)
-    if exp_match:
-        data["years_of_experience"] = float(exp_match.group(1))
-    return data
-
-async def parse_cv_with_ai(cv_text: str) -> Dict[str, Any]:
-    """Use Groq (llama-3.3-70b) to extract structured info from a CV."""
-    if not settings.GROQ_API_KEY:
-        print("❌ GROQ_API_KEY manquante dans .env")
-        return heuristic_parse_cv(cv_text)
-
-    client = AsyncOpenAI(
-        api_key=settings.GROQ_API_KEY,
-        base_url="https://api.groq.com/openai/v1",
-    )
+async def parse_cv_with_ai(cv_text: str) -> dict:
+    """
+    Analyse le CV avec un LLM (Llama 3.3 via Groq) pour extraire des données structurées.
+    """
+    if not cv_text:
+        return None
 
     prompt = f"""Analyse le texte suivant extrait d'un CV et extrais les informations au format JSON uniquement.
 
@@ -56,79 +34,63 @@ Structure attendue :
     "education_level": 0,
     "skills": [ {{ "name": "...", "level": 1, "years_experience": 0.0 }} ],
     "bio_summary": "...",
-    "experience_detail": "..."
+    "experience_detail": "...",
+    "formations": "...",
+    "certifications": "..."
 }}
 
-education_level : entier 0-8 (ex: 5 pour Bac+5 / Master).
+education_level : entier 0-8 par rapport au système français. (Ex : 2=Bac, 3=Bac+2, 5=Bac+5/Master, 8=Doctorat). 
+Important : Le Master est Bac+5. Ne dépasse 5 que pour un MBA (6) ou Doctorat (8).
 skill level : entier 1-4 (1=débutant, 4=expert).
+formations : Texte court résumant les diplômes et dates.
+certifications : Liste des certifs ou formations courtes (ex: AWS, Google, etc).
 Réponds UNIQUEMENT avec le JSON.
 
 Texte du CV :
 ---
-{cv_text}
----"""
+{cv_text[:4000]}
+---
+"""
 
     try:
-        print("Parsing CV avec Groq (llama-3.3-70b-versatile)...")
-        response = await client.chat.completions.create(
+        chat_completion = client.chat.completions.create(
+            messages=[
+                {
+                    "role": "user",
+                    "content": prompt,
+                }
+            ],
             model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
             temperature=0.1,
-            max_tokens=2048,
         )
-        content = response.choices[0].message.content or ""
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
-        data = json.loads(content.strip())
-        print("✅ Parsing CV réussi avec Groq")
-        return data
+        return json.loads(chat_completion.choices[0].message.content)
     except Exception as e:
-        print(f"❌ Échec Groq: {e}")
-        return heuristic_parse_cv(cv_text)
+        print(f"Erreur parsing IA: {e}")
+        # Fallback basique ou retour None
+        return None
 
-async def parse_text_skills(text: str, context: str = "experience") -> Dict[str, Any]:
-    """Use Groq to extract ROME skills from a free-text block."""
-    if not settings.GROQ_API_KEY:
-        return {"skills_detected": [], "years_experience_detected": 0, "domaines_metier": []}
-
-    client = AsyncOpenAI(
-        api_key=settings.GROQ_API_KEY,
-        base_url="https://api.groq.com/openai/v1",
-    )
-
-    prompt = f"""Analyse ce texte ({context}) et extrais les informations structurées au format JSON uniquement.
+async def parse_text_skills(text: str, context: str = "experience") -> dict:
+    """Extrait des compétences spécifiques à partir d'un bloc de texte libre."""
+    prompt = f"""Analyse ce bloc de texte ({context}) et extrais les compétences techniques et soft skills.
+Pour chaque compétence, trouve le code ROME le plus proche si possible.
 
 Structure attendue :
 {{
-    "skills_detected": [
-        {{ "name": "Nom compétence", "rome_code": "D1234 ou null", "level_suggested": 1 }}
-    ],
-    "years_experience_detected": 0,
-    "domaines_metier": ["Développement logiciel"]
+    "skills": [ {{ "name": "...", "level": 1, "years_experience": 0.0, "rome_code": "..." }} ],
+    "experience_years_extracted": 0.0
 }}
 
-Réponds UNIQUEMENT avec le JSON.
-
-Texte :
----
-{text}
----"""
-
+Texte : {text[:2000]}
+Réponds uniquement en JSON.
+"""
     try:
-        response = await client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1,
-            max_tokens=1024,
+            model="llama-3.3-70b-versatile",
+            response_format={"type": "json_object"},
+            temperature=0.1
         )
-        content = response.choices[0].message.content or ""
-        if "```json" in content:
-            content = content.split("```json")[1].split("```")[0]
-        elif "```" in content:
-            content = content.split("```")[1].split("```")[0]
-        return json.loads(content.strip())
-    except Exception as e:
-        print(f"❌ parse_text_skills error: {e}")
-        return {"skills_detected": [], "years_experience_detected": 0, "domaines_metier": []}
+        return json.loads(response.choices[0].message.content)
+    except:
+        return {{"skills": [], "experience_years_extracted": 0.0}}

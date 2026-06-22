@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime
 
 from ..core.database import get_db
 from ..models.job import Job, JobRequirement
@@ -35,6 +36,7 @@ class JobBase(BaseModel):
     contract_type: Optional[str] = None
     start_date: Optional[str] = None
     benefits: Optional[list] = None
+    is_active: bool = True
 
 class JobCreate(JobBase):
     requirements: List[SkillRequirement] = []
@@ -63,12 +65,16 @@ class JobResponse(JobBase):
     id: int
     recruiter_id: Optional[int] = None
     requirements: List[SkillRequirementResponse] = []
+    is_active: bool = True
+    match_score: Optional[float] = None
+    created_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
 
 class JobWithMatches(JobResponse):
     matching_candidates: List[dict] = []  # Sera enrichi avec score et gaps
+    status_counts: dict = {} # New field for status overview
 
 
 # Endpoints
@@ -161,6 +167,9 @@ async def get_jobs(
         if recruiter:
             query = query.filter(Job.company_id == recruiter.company_id)
     
+    # Tri par date de création (décroissant)
+    query = query.order_by(Job.created_at.desc())
+    
     # Appliquer les filtres
     if location:
         query = query.filter(Job.location.ilike(f"%{location}%"))
@@ -203,6 +212,14 @@ async def get_job(
         skill = db.query(Skill).filter(Skill.id == req.skill_id).first()
         if skill:
             req.skill_name = skill.name
+            
+    # --- Nouveau : Calculer le matching si l'utilisateur est un candidat ---
+    if current_user and current_user.role == "CANDIDATE":
+        candidate = db.query(Candidate).filter(Candidate.user_id == current_user.id).first()
+        if candidate:
+            from ..services.matching import calculate_match_score
+            match_data = calculate_match_score(candidate, job)
+            job_response.match_score = match_data["total_score"]
     
     return job_response
 
@@ -361,10 +378,8 @@ async def get_job_matches(
     matches = find_matching_candidates(job, candidates, min_score)
     
     # Enrichir avec le statut "a postulé"
-    applied_candidate_ids = [
-        app.candidate_id 
-        for app in db.query(Application.candidate_id).filter(Application.job_id == job_id).all()
-    ]
+    applications = db.query(Application).filter(Application.job_id == job_id).all()
+    applied_candidate_ids = [app.candidate_id for app in applications]
     
     for match in matches:
         match["has_applied"] = match["candidate_id"] in applied_candidate_ids
@@ -376,7 +391,40 @@ async def get_job_matches(
     response_dict = job_response.model_dump()
     response_dict["matching_candidates"] = matches
     
+    # Calculer les status_counts
+    status_counts = {}
+    for app in applications:
+        status_counts[app.status.value] = status_counts.get(app.status.value, 0) + 1
+    response_dict["status_counts"] = status_counts
+    
     return response_dict
+
+
+@router.patch("/{job_id}/archive")
+async def archive_job(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Archive ou désarchive une offre d'emploi.
+    """
+    if current_user.role not in ["ADMIN", "RECRUITER"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès refusé")
+    
+    db_job = db.query(Job).filter(Job.id == job_id).first()
+    if not db_job:
+        raise HTTPException(status_code=404, detail="Job non trouvé")
+    
+    # Sécurité isolation
+    if current_user.role == "RECRUITER":
+        recruiter = db.query(Recruiter).filter(Recruiter.user_id == current_user.id).first()
+        if not recruiter or db_job.company_id != recruiter.company_id:
+            raise HTTPException(status_code=403, detail="Non autorisé")
+
+    db_job.is_active = not db_job.is_active
+    db.commit()
+    return {"id": job_id, "is_active": db_job.is_active}
 
 
 @router.get("/{job_id}/internal-matches")

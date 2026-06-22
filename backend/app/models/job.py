@@ -24,6 +24,7 @@ class Job(Base):
     benefits = Column(JSON, nullable=True)           # ["Télétravail", "Tickets resto", ...]
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    is_active = Column(Boolean, default=True)
     
     # Relations
     recruiter = relationship("Recruiter", back_populates="jobs")
